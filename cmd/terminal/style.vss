@@ -1,0 +1,10 @@
+/* The page around the window: the whole height, no scrolling, and the
+   terminal's background behind everything. */
+package main
+
+html, body { height: 100%; }
+body { background: #ffffff; overflow: hidden; }
+
+@media (prefers-color-scheme: dark) {
+    body { background: #1e1e1e; }
+}

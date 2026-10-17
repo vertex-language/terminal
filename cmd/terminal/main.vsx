@@ -1,0 +1,23 @@
+// terminal: a general-purpose terminal with tabs. Each tab runs the
+// user's shell under a pseudo-terminal (os/pty); vt keeps its screen and
+// view draws it, under a tab bar of .vsx markup (package workspace).
+//
+//     vsc run terminal
+//     vsc run terminal -- --light
+//     vsc run terminal -- --tabs 3 --type "ls\n"      # open tabs, type into the last
+//
+// Keys: ⌘T new tab (in the current tab's directory), ⌘W close it, ⌘1-9
+// and ⌘⇧[ ⌘⇧] or ⌃Tab to switch, ⌘C copy, ⌘V paste, ⌘A select all, ⌘K
+// clear, ⌘+ ⌘- ⌘0 the font size, ⇧PageUp ⇧PageDown scroll. Option is
+// sent as Meta (ESC prefix) where TERMINAL_OPTION_AS_META=1.
+package main
+
+import (
+    "terminal/workspace"
+    "ui/app"
+)
+
+@MainActor
+func main() async -> int32 {
+    return await app.Run(title: "Terminal", width: 900, height: 560) { <workspace.TerminalWindow /> }
+}

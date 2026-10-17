@@ -1,0 +1,191 @@
+// check-ui: the terminal window mounted headless, with real shells: what
+// is typed into it reaches the shell, the shell's output reaches the
+// screen and the pixels, and tabs open, switch and close.
+//
+//     vsc run check-ui
+package main
+
+import (
+    "image/draw"
+    "terminal/workspace"
+    "time"
+    "ui/componenttest"
+    "web"
+)
+
+var failures = 0
+
+func check(_ ok: bool, _ what: string) {
+    if ok {
+        print("ok   \(what)")
+    } else {
+        print("FAIL \(what)")
+        failures += 1
+    }
+}
+
+/// Waits up to seconds for cond, looking every 20 ms while the shells run.
+func until(_ seconds: float64, _ cond: () -> bool) async -> bool {
+    var waited: float64 = 0
+    while waited < seconds {
+        if cond() { return true }
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        waited += 0.02
+    }
+    return cond()
+}
+
+/// How many times needle appears in text.
+func count(_ text: string, _ needle: string) -> int {
+    let t = [uint8](text.utf8)
+    let n = [uint8](needle.utf8)
+    var found = 0
+    var i = 0
+    while i + n.count <= t.count {
+        var j = 0
+        while j < n.count && t[i + j] == n[j] { j += 1 }
+        if j == n.count {
+            found += 1
+            i += n.count
+        } else {
+            i += 1
+        }
+    }
+    return found
+}
+
+@MainActor
+func key(_ s: componenttest.Screen, _ key: string, _ code: string, control: bool = false, meta: bool = false, shift: bool = false) {
+    _ = s.Page.Handle(.keyDown(web.Key(Key: key, Code: code, Shift: shift, Control: control, Meta: meta)))
+}
+
+@MainActor
+func type(_ s: componenttest.Screen, _ text: string) {
+    _ = s.Page.Handle(.text(text))
+}
+
+@MainActor
+func main() async -> int32 {
+    let c = workspace.Controller()
+    let s = componenttest.Mount(width: 800, height: 500, css: "html, body { height: 100%; }") {
+        <workspace.TerminalWindow controller={c} />
+    }
+
+    check(c.TabCount == 1, "one tab to start with")
+    check(s.Query(".tab").Count == 1, "and the tab bar shows it")
+    check(s.Page.FocusedElement === s.Query(".surface").First, "the terminal surface has the keyboard")
+    let prompt = await until(5) { !c.ScreenText().allSatisfy { $0 == "\n" || $0 == " " } }
+    check(prompt, "the shell drew a prompt")
+
+    // Typing reaches the shell; what it runs reaches the screen.
+    type(s, "echo vt-ok-$((6*7))")
+    key(s, "Enter", "Enter")
+    check(await until(5) { c.ScreenText().contains("vt-ok-42") }, "typed command ran (output on the screen)")
+
+    // Pixels: the viewport draws, and the grid is sized to its box.
+    _ = s.Pixels()
+    let grid = c.GridSize
+    check(grid.Columns > 40 && grid.Columns != 80, "the grid follows the view's size (\(grid.Columns)×\(grid.Rows))")
+    type(s, "stty size")
+    key(s, "Enter", "Enter")
+    check(await until(5) { c.ScreenText().contains("\(grid.Rows) \(grid.Columns)") }, "and the shell was told (stty size)")
+
+    // Control-C interrupts what runs in the foreground.
+    type(s, "sleep 30")
+    key(s, "Enter", "Enter")
+    _ = await until(1) { false }
+    key(s, "c", "KeyC", control: true)
+    type(s, "echo after-$((1+1))")
+    key(s, "Enter", "Enter")
+    check(await until(5) { c.ScreenText().contains("after-2") }, "^C interrupted sleep")
+
+    // A flood of output: 200,000 lines through the pty, the parser and
+    // the scrollback, with frames drawn meanwhile.
+    let t0 = time.Instant.Now()
+    type(s, "seq 1 200000; echo flood-$((7*6))")
+    key(s, "Enter", "Enter")
+    let flooded = await until(30) {
+        _ = s.Pixels()
+        return c.ScreenText().contains("flood-42")
+    }
+    check(flooded, "200,000 lines of output arrive (\(t0.Elapsed().AsMilliseconds()) ms)")
+
+    // Arrow keys: history.
+    type(s, "echo again-$((2+2))")
+    key(s, "Enter", "Enter")
+    _ = await until(5) { c.ScreenText().contains("again-4") }
+    key(s, "ArrowUp", "ArrowUp")
+    key(s, "Enter", "Enter")
+    check(await until(5) { count(c.ScreenText(), "again-4") >= 2 }, "↑ recalls the last command")
+
+    // Dragging across the first row selects its text.
+    type(s, "clear; echo select-me-please")
+    key(s, "Enter", "Enter")
+    _ = await until(5) { c.ScreenText().hasPrefix("select-me-please") || c.ScreenText().contains("\nselect-me-please") }
+    _ = s.Pixels()
+    let rowY: float32 = 15 / 466
+    s.Drag(s.Query(".surface"), from: 0.005, to: 0.15, steps: 6, y: rowY)
+    check(c.SelectedText().hasPrefix("select-me"), "a drag selects (\(c.SelectedText().debugDescription))")
+    type(s, "x")
+    check(c.SelectedText().isEmpty, "typing clears the selection")
+    key(s, "Backspace", "Backspace")
+
+    // With mouse reporting on, a press is the program's; Shift-drag still
+    // selects.
+    type(s, "clear; printf '\\033[?1000h'; echo mouse-on-ready")
+    key(s, "Enter", "Enter")
+    _ = await until(5) { c.ScreenText().contains("\nmouse-on-ready") || c.ScreenText().hasPrefix("mouse-on-ready") }
+    _ = s.Pixels()
+    let y: float32 = 36 + 6 + 8
+    let shift = web.Modifiers(shift: true)
+    _ = s.Page.Handle(.pointerDown(web.Pointer(draw.Point(8, y))))
+    _ = s.Page.Handle(.pointerMoved(draw.Point(90, y)))
+    _ = s.Page.Handle(.pointerUp(web.Pointer(draw.Point(90, y))))
+    check(c.SelectedText().isEmpty, "a plain press goes to the program that asked for the mouse")
+    _ = s.Page.Handle(.pointerDown(web.Pointer(draw.Point(8, y), modifiers: shift)))
+    _ = s.Page.Handle(.pointerMoved(draw.Point(90, y)))
+    _ = s.Page.Handle(.pointerUp(web.Pointer(draw.Point(90, y), modifiers: shift)))
+    check(c.SelectedText().hasPrefix("mouse-on"), "Shift-drag selects anyway (\(c.SelectedText().debugDescription))")
+    type(s, "printf '\\033[?1000l'")
+    key(s, "Enter", "Enter")
+
+    // The tab bar's + opens a tab, which comes to the front.
+    check(s.Click(s.Query(".new")), "click +")
+    check(c.TabCount == 2 && c.ActiveIndex == 1, "a second tab, in front")
+    check(s.Query(".tab").Count == 2 && s.Query(".tab.active").Count == 1, "the bar shows two, one active")
+    check(await until(5) { !c.ScreenText().allSatisfy { $0 == "\n" || $0 == " " } }, "its shell started")
+    type(s, "printf '\\033]0;custom title\\007'")
+    key(s, "Enter", "Enter")
+    check(await until(5) { c.TabTitles.count == 2 && c.TabTitles[1] == "custom title" }, "OSC 0 sets the tab's title (\(c.TabTitles))")
+    check(await until(2) { s.Query(".tab.active .label").Text == "custom title" }, "and the bar shows it")
+
+    // ⌘1 and ⌘2 switch; clicking a tab switches.
+    key(s, "1", "Digit1", meta: true)
+    check(c.ActiveIndex == 0 && c.ScreenText().contains("mouse-on-ready"), "⌘1 shows the first tab")
+    check(s.Click(s.Query(".tab").Nth(1)), "click the second tab")
+    check(c.ActiveIndex == 1, "it comes to the front")
+    check(s.Page.FocusedElement === s.Query(".surface").First, "and the keyboard stays with the terminal")
+
+    // ⌘T, then ⌘W closes the tab in front.
+    key(s, "t", "KeyT", meta: true)
+    check(c.TabCount == 3, "⌘T opens a tab")
+    key(s, "w", "KeyW", meta: true)
+    check(c.TabCount == 2, "⌘W closes it")
+
+    // A shell that exits closes its tab.
+    type(s, "exit")
+    key(s, "Enter", "Enter")
+    check(await until(5) { c.TabCount == 1 }, "exit closes the tab")
+    check(s.Query(".tab").Count == 1, "and the bar drops it")
+
+    // The close button.
+    check(s.Click(s.Query(".tab .close")), "click ×")
+    check(c.TabCount == 0, "the last tab closed (the app quits)")
+
+    if failures > 0 {
+        print("\(failures) failed")
+        return 1
+    }
+    print("all ok")
+    return 0
+}
