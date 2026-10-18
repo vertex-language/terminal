@@ -58,8 +58,10 @@ final class UI {
     var Hover = ""
     // The tab bar is hidden (focus mode).
     var FocusMode = false
-    // The tab being dragged to a new place, or 0.
+    // The tab being dragged to a new place, or 0, and how far it is from
+    // its place in the bar (CSS pixels).
     var Dragging = 0
+    var DragShift: float32 = 0
     var WindowName = ""
     /// The terminal's background and text colors: the tab in front is
     /// drawn in them, so it joins the terminal under it.

@@ -300,6 +300,24 @@ func main() async -> int32 {
     check(c.TabCount == before, "⌘⇧T restores the closed tab")
     key(s, "w", "KeyW", meta: true)
 
+    // Dragging a tab moves it among the others, as a browser's: two new
+    // tabs after the ones open, the last dragged to the left and back.
+    let titles = c.TabTitles
+    key(s, "t", "KeyT", meta: true)
+    key(s, "t", "KeyT", meta: true)
+    let n = c.TabCount
+    check(c.ActiveIndex == n - 1, "the newest tab is in front, last")
+    s.Drag(s.Query(".tab").Nth(n - 1), from: 0.5, to: 0.2, steps: 4, each: { k in
+        if k == 4 { check(s.Query(".tab.dragging").Exists && c.ActiveIndex == n - 1, "a short drag lifts the tab, and keeps its place") }
+    })
+    check(!s.Query(".tab.dragging").Exists, "let go, it settles")
+    s.Drag(s.Query(".tab").Nth(n - 1), from: 0.5, to: -1.6, steps: 20)
+    check(c.ActiveIndex == n - 3, "dragged left past two tabs, it is two places on (at \(c.ActiveIndex))")
+    s.Drag(s.Query(".tab").Nth(n - 3), from: 0.5, to: 1.7, steps: 12)
+    check(c.ActiveIndex == n - 2, "and right past one, back one place (at \(c.ActiveIndex))")
+    check(s.Click(s.Query(".tab .close").Nth(n - 1)) && s.Click(s.Query(".tab .close").Nth(n - 2)), "close the two new tabs")
+    check(c.TabTitles == titles, "the tabs open before are as they were")
+
     // The settings tab: ⌘, opens it beside the terminals.
     key(s, ",", "Comma", meta: true)
     check(c.SettingsTabShown && s.Query(".settings").Exists, "⌘, opens the settings tab")

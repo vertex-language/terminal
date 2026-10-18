@@ -92,6 +92,14 @@ public final class Controller {
     /// The settings' text, for a controller given its settings: what the
     /// settings tab edits in place of the file.
     var settingsText = ""
+    /// Each tab's element, to measure while one is dragged.
+    var tabNodes: [int: component.Ref] = [:]
+    /// The tab pressed, where the pointer was then (less what a move
+    /// across a neighbour has taken up), and whether it has moved enough
+    /// to be a drag.
+    var dragPress = 0
+    var dragStartX: float32 = 0
+    var dragMoved = false
 
     public init() {
         settingsFile = settingsPath()

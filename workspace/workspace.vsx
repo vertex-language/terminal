@@ -22,31 +22,25 @@ import (
 
 @MainActor
 func TabItem(c: Controller, t: Tab) -> component.Node {
-    let ws = c.ws
     let ui = c.ui
+    @state.State var node: component.Ref = nil
+    component.OnMount { c.tabNodes[t.ID] = node }
     return (
-        <div class="tab" class:active={c.IsFront(t.ID)}
+        <div class="tab" ref={$node} class:active={c.IsFront(t.ID)}
              style:background={c.IsFront(t.ID) ? ui.SurfaceColor : ""}
              style:color={c.IsFront(t.ID) ? ui.SurfaceText : ""} class:bell={t.Bell} class:colored={!t.Color.isEmpty}
              class:dragging={ui.Dragging == t.ID}
+             style:left={ui.Dragging == t.ID ? "\(ui.DragShift)px" : ""}
              title={t.Shown}
              onPointerDown={e in
                 if e.Button == 1 {
                     c.Close(t.ID)
                 } else if e.Button == 0 {
                     c.Select(t.ID)
-                    ui.Dragging = t.ID
+                    c.tabPressed(t.ID, x: e.X)
                 }
              }
-             onPointerUp={_ in ui.Dragging = 0}
              onClick={_ in c.Select(t.ID)}
-             onMouseEnter={_ in
-                // Dragging a tab over another moves it there.
-                if ui.Dragging != 0 && ui.Dragging != t.ID, let from = ws.Index(of: ui.Dragging), let to = ws.Index(of: t.ID) {
-                    let moved = ws.Tabs.remove(at: from)
-                    ws.Tabs.insert(moved, at: to)
-                }
-             }
              onDoubleClick={_ in c.startRename(t.ID)}
              onContextMenu={e in
                 e.PreventDefault()
@@ -108,14 +102,14 @@ func TabBar(c: Controller) -> component.Node {
     let ui = c.ui
     return (
         <header class="tabbar" class:compact={c.liveSettings.TabWidthMode == "compact"} class:fit={c.liveSettings.TabWidthMode == "titleLength"}
-                class:titlebar={ui.InTitlebar && !ui.Fullscreen}
+                class:titlebar={ui.InTitlebar && !ui.Fullscreen} class:dragging={ui.Dragging != 0}
                 onPointerDown={e in
                     // An empty part of the bar is the title bar: it moves
                     // the window, and a double-click zooms it.
                     guard let n = e.Target, n.HasClass("tabbar") || n.HasClass("spacer") || n.HasClass("tabs") else { return }
                     if e.Clicks == 2 { app.TitlebarDoubleClick() } else { app.StartWindowDrag() }
                 }
-                onPointerUp={_ in ui.Dragging = 0} onMouseLeave={_ in ui.Dragging = 0}>
+                >
             <div class="more" role="button" title={"Profiles and settings (" + c.liveSettings.KeysFor("Terminal.OpenNewTabDropdown") + ")"} onClick={e in
                 c.openNewTabMenu(x: e.X - 14, y: 42)
             }>
@@ -294,7 +288,7 @@ public func TerminalWindow(controller: Controller? = nil) -> component.Node {
         Task { await c.scripted(CommandLine.arguments) }
     }
     return (
-        <div class="window">
+        <div class="window" onPointerMove={e in c.tabDragMove(x: e.X)} onPointerUp={_ in c.tabDragEnd()}>
             {if !ui.FocusMode && (c.liveSettings.AlwaysShowTabs || c.ws.Tabs.count > 1) { <TabBar c={c} /> }}
             {if (ui.FocusMode || (!c.liveSettings.AlwaysShowTabs && c.ws.Tabs.count <= 1)) && ui.InTitlebar && !ui.Fullscreen {
                 <div class="dragstrip" onPointerDown={e in if e.Clicks == 2 { app.TitlebarDoubleClick() } else { app.StartWindowDrag() }}></div>

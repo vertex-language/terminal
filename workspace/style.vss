@@ -91,8 +91,10 @@ package workspace
         background: var(--tab-active);
         color: var(--text-active);
     }
-    &.dragging { opacity: 0.75; }
+    &.dragging { z-index: 2; }
 }
+/* While a tab is dragged, the ones under it don't light up. */
+.tabbar.dragging .tab:not(.active):hover { background: transparent; }
 
 /* The lines between tabs: none beside the one in front or hovered. */
 .tab + .tab::before {
