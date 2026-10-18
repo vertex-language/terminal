@@ -769,8 +769,8 @@ extension Controller {
         let winW = o.X + size.Width
         let winH = o.Y + size.Height
         let menuW: float32 = 250
-        var menuH: float32 = 10
-        for it in list { menuH += it.Separator ? 9 : 24 }
+        var menuH: float32 = 14
+        for it in list { menuH += it.Separator ? 13 : 34 }
         ui.MenuX = max(4, min(x, winW - menuW - 4))
         ui.MenuY = y + menuH > winH - 4 ? max(4, min(y, winH - 4) - menuH) : y
         ui.Menu = true
