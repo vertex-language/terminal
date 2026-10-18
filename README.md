@@ -1,7 +1,7 @@
 <h1 align="center">Vertex Terminal</h1>
 
 <p align="center">
-  <b>Everything Windows Terminal does, on the Mac.</b><br>
+  <b>A modern terminal: tabs, panes, every color, and a settings page.</b><br>
   Written in Vertex, from the pseudo-terminal to the pixels.
 </p>
 
@@ -42,8 +42,9 @@ one, and says which are here.
 
 ## Get started
 
-Vertex Terminal runs on macOS 14 or later, and builds with
-[`vsc`](https://github.com/vertex-language/vsc), the Vertex compiler.
+Vertex Terminal builds with [`vsc`](https://github.com/vertex-language/vsc),
+the Vertex compiler. It is tested on macOS today; Linux and Windows are next
+(see the [roadmap](#roadmap)).
 
 ```bash
 git clone https://github.com/vertex-language/terminal
@@ -63,6 +64,8 @@ vsc run terminal -- --light                                     # or --dark
 `TERM_PROGRAM=vertex-terminal`.
 
 ## Keyboard
+
+The keys as macOS has them; settings.json binds any of them anew.
 
 | Keys | Do |
 | :--- | :--- |
@@ -85,7 +88,7 @@ vsc run terminal -- --light                                     # or --dark
 | ⌘-click | open a hyperlink or URL |
 | right-click | the menu: copy, paste, split, find, read-only, export… |
 
-Option composes characters, as everywhere on a Mac;
+On macOS, Option composes characters as everywhere else;
 `TERMINAL_OPTION_AS_META=1` makes it Meta instead, for a shell's Alt bindings.
 
 ## Settings
@@ -98,8 +101,9 @@ The Settings tab (⌘,) has startup, interaction and appearance, the color
 schemes, every action and its keys, the defaults every profile starts from,
 and each profile. A change is written to `settings.json` at once.
 
-`settings.json` lives in `~/Library/Application Support/vertex-terminal/` (or
-wherever `$VERTEX_TERMINAL_SETTINGS` says), in [Windows Terminal's
+`settings.json` lives in your configuration folder, under `vertex-terminal/`
+(on macOS, `~/Library/Application Support/vertex-terminal/`), or wherever
+`$VERTEX_TERMINAL_SETTINGS` says, in [Windows Terminal's
 format](https://learn.microsoft.com/windows/terminal/customize-settings/) with
 `cmd` for ⌘. It's written the first time with a profile for each shell in
 `/etc/shells`.
@@ -176,9 +180,13 @@ terminal/
 ## Roadmap
 
 [FEATURES.md](FEATURES.md) has the full list. The larger pieces still to come
-are several windows (and quake mode), background images and acrylic,
-ligatures, regex search, copying as HTML, and Windows, where `os/pty` has no
-ConPTY yet.
+are:
+
+- **Linux and Windows.** Vertex builds for both; the terminal needs their
+  window and title-bar integration, and on Windows a ConPTY behind `os/pty`.
+- Several windows, and quake mode.
+- Background images and acrylic.
+- Ligatures, regex search, and copying as HTML.
 
 ## License
 
