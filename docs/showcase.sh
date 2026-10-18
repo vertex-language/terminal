@@ -45,7 +45,7 @@ colors)
     ;;
 log)
     printf "${e}[2m❯ git log --graph --oneline$r\n"
-    git --no-pager -C "${2:-.}" log --graph --color=always -n 15 --format='%C(yellow)%h%Creset %<(40,trunc)%s %C(blue)%ar%Creset' 
+    git --no-pager -C "${2:-.}" log --graph --color=always --before="2 hours ago" -n 15 --format='%C(yellow)%h%Creset %<(40,trunc)%s %C(blue)%ar%Creset' 
     printf "\n"
     prompt
     ;;

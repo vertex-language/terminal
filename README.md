@@ -1,61 +1,68 @@
-# terminal
+<h1 align="center">Vertex Terminal</h1>
 
-[![package: vs-package](https://img.shields.io/badge/package-vs--package-f4f4f5?style=flat-square&labelColor=e4e4e7&color=18181b)](https://github.com/vertex-language)
-[![packages: vt | view | workspace](https://img.shields.io/badge/packages-vt%20%7C%20view%20%7C%20workspace-f4f4f5?style=flat-square&labelColor=e4e4e7&color=18181b)](https://github.com/vertex-language/terminal)
-[![status: macOS tested](https://img.shields.io/badge/status-macOS%20tested-f4f4f5?style=flat-square&labelColor=e4e4e7&color=18181b)](https://github.com/vertex-language/terminal)
+<p align="center">
+  <b>Everything Windows Terminal does, on the Mac.</b><br>
+  Written in Vertex, from the pseudo-terminal to the pixels.
+</p>
+
+<p align="center">
+  <a href="#get-started">Get started</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#keyboard">Keyboard</a> ·
+  <a href="#settings">Settings</a> ·
+  <a href="#how-its-built">How it's built</a>
+</p>
 
 <p align="center">
   <img src="docs/screenshot.png" alt="Vertex Terminal: three color-striped tabs, the first split into three panes -- the 16, 256 and 24-bit colors, underline styles, CJK and emoji beside a colored git log and a directory listing" width="100%">
 </p>
 
-<p align="center">
-  <b>A terminal with everything Windows Terminal has, on the Mac -- written in Vertex, from the pseudo-terminal to the pixels.</b>
-</p>
-
----
+## Features
 
 - **Every color, every style.** 16, 256 and 24-bit color; bold, italic, dim,
-  strike, inverse; curly, double, dotted and dashed underlines in their own
-  colors; OSC 8 hyperlinks; sixel images; CJK and emoji at double width; Windows
-  Terminal's color schemes, light and dark.
-- **Tabs and panes.** Chrome-style tabs in the title bar -- drag one to reorder
-  it, give it a color, rename it -- each split into panes in any direction, to
-  resize, zoom, swap or type into all at once.
-- **A settings page, and `settings.json`.** Windows Terminal's own format:
-  profiles, schemes, actions and keys, reloaded the moment it's saved. Or press
-  ⌘, and change them in a Settings tab that writes the file for you.
-- **Everything at a keystroke.** ⌘⇧P lists every action with its keys; find
-  with ⌘F; jump between prompts with ⌘↑ ⌘↓; select by mouse, by keyboard (mark
-  mode) or by block.
-- **Nothing but Vertex.** `vt` is the emulator, `view` the renderer and
-  `workspace` the window -- about 11,600 lines of `.vs`, `.vsx` and `.vss`,
-  built into one native executable of under 5 MB. No Electron, no system web view.
+  strike and inverse; curly, double, dotted and dashed underlines in colors of
+  their own; clickable OSC 8 hyperlinks; sixel images; CJK and emoji at double
+  width; all of Windows Terminal's color schemes, light and dark.
+- **Tabs and panes.** Chrome-style tabs in the title bar -- drag one to
+  reorder it, give it a color, rename it -- each split into panes in any
+  direction, to resize, zoom, swap, or type into all at once.
+- **Settings two ways.** Press ⌘, for a Settings tab, or edit `settings.json`
+  in Windows Terminal's own format: profiles, color schemes, actions and keys,
+  applied the moment they're saved.
+- **Everything at a keystroke.** ⌘⇧P lists every action with its keys. Find
+  with ⌘F, jump between prompts with ⌘↑ ⌘↓, select with the mouse, the
+  keyboard (mark mode) or by block.
+- **Your session, kept.** Tabs, panes and their directories come back the
+  next time it opens, if you want them to.
+- **Small and native.** One executable of under 5 MB, drawn by its own
+  renderer: no Electron, no system web view.
 
-<p align="center">
-  <img src="docs/settings.png" alt="The Settings tab: a sidebar of pages and profiles beside cards of settings with switches, choices and steppers" width="100%">
-</p>
+[FEATURES.md](FEATURES.md) goes through Windows Terminal's features one by
+one, and says which are here.
 
-[FEATURES.md](FEATURES.md) goes through Windows Terminal's features one by one.
-The screenshot is `docs/showcase.sh`, in the layout and settings
-(`docs/showcase.json`, One Half Dark) its header describes.
+## Get started
 
-## Quick Start
+Vertex Terminal runs on macOS 14 or later, and builds with
+[`vsc`](https://github.com/vertex-language/vsc), the Vertex compiler.
 
 ```bash
-vsc run terminal                           # your $SHELL, in a window
-vsc run terminal -- --light                # or --dark, whatever the system's
-vsc run terminal -- new-tab -p bash -d ~/src \; split-pane -V   # wt's command line
-vsc run terminal -- --tabs 3 --type "ls\n" # open tabs, type into the last
-
-vsc run check                              # the emulator's checks (offline)
-vsc run check-ui                           # the window, headless, with real shells
-vsc run render-snapshot -- out.png         # what view draws, as a PNG
+git clone https://github.com/vertex-language/terminal
+cd terminal
+vsc run terminal
 ```
 
-`--snapshot out.png --snapshot-after 2` (from `ui/app`) draws the window two
-seconds in and quits; `--action <id>` runs an action at startup
-(`--action Terminal.ToggleCommandPalette`), `--quit-after 3` quits as ⌘Q
-does.
+It opens your `$SHELL` as a login shell. It also takes Windows Terminal's
+`wt` command line, to open a layout:
+
+```bash
+vsc run terminal -- new-tab -p bash -d ~/src \; split-pane -V   # bash in ~/src, split
+vsc run terminal -- --light                                     # or --dark
+```
+
+`TERM` is `xterm-256color`, with `COLORTERM=truecolor` and
+`TERM_PROGRAM=vertex-terminal`.
+
+## Keyboard
 
 | Keys | Do |
 | :--- | :--- |
@@ -69,26 +76,33 @@ does.
 | ⌘F, ⌘G ⌘⇧G | find, next/previous match |
 | ⌘C ⌘V ⌘A, ⌘⇧M | copy, paste (with warnings), select all; mark mode |
 | ⌘↑ ⌘↓, ⌘⇧← ⌘⇧→ | previous/next prompt (shell integration); select command/output |
-| ⇧PageUp ⇧PageDown, ⌘Home ⌘End, the wheel, the scrollbar | scroll |
+| ⇧PageUp ⇧PageDown, ⌘Home ⌘End | scroll |
 | ⌘K, ⌘S | clear the buffer, export it to ~/Downloads |
 | ⌘+ ⌘- ⌘0, ⌘ wheel, ⌘⇧ wheel | font size; opacity |
-| ⌃⌘F, ⌘, | fullscreen, settings |
+| ⌃⌘F | fullscreen |
+| ⌘,  ⌘⇧, | the Settings tab; settings.json |
 | drag, double-, triple-click, ⇧-click, ⌥-drag | select characters, a word, a line, extend, a block |
 | ⌘-click | open a hyperlink or URL |
-| right-click | the menu (copy, paste, split, find, read-only, export…) |
+| right-click | the menu: copy, paste, split, find, read-only, export… |
 
-Option is a composing key, as on a Mac; `TERMINAL_OPTION_AS_META=1` sends it
-as Meta (ESC before the key) for shells' Alt bindings.
+Option composes characters, as everywhere on a Mac;
+`TERMINAL_OPTION_AS_META=1` makes it Meta instead, for a shell's Alt bindings.
 
 ## Settings
 
-`~/Library/Application Support/vertex-terminal/settings.json` (or
-`$VERTEX_TERMINAL_SETTINGS`), in [Windows Terminal's
-format](https://learn.microsoft.com/windows/terminal/customize-settings/):
-global settings, `profiles` (a `defaults` object and a `list`), `schemes`,
-and `actions`/`keybindings` by Windows Terminal's ids, with `cmd` for ⌘.
-It is written the first time with a profile for each shell in
-`/etc/shells`, and read again whenever it is saved.
+<p align="center">
+  <img src="docs/settings.png" alt="The Settings tab: a sidebar of pages and profiles beside cards of settings with switches, choices and steppers" width="100%">
+</p>
+
+The Settings tab (⌘,) has startup, interaction and appearance, the color
+schemes, every action and its keys, the defaults every profile starts from,
+and each profile. A change is written to `settings.json` at once.
+
+`settings.json` lives in `~/Library/Application Support/vertex-terminal/` (or
+wherever `$VERTEX_TERMINAL_SETTINGS` says), in [Windows Terminal's
+format](https://learn.microsoft.com/windows/terminal/customize-settings/) with
+`cmd` for ⌘. It's written the first time with a profile for each shell in
+`/etc/shells`.
 
 ```jsonc
 {
@@ -103,67 +117,68 @@ It is written the first time with a profile for each shell in
 }
 ```
 
----
+## How it's built
 
-## Packages
+About 11,600 lines of Vertex, in three packages:
 
 | Package | What it is |
 | :--- | :--- |
-| **`terminal/vt`** | The emulator: bytes in, a screen of cells out. A DEC/xterm parser (UTF-8, CSI, OSC, DCS), the main and alternate screens, a scrollback ring with reflow, scrolling regions and left/right margins, rectangular editing, selective erase, SGR with 16, 256 and 24-bit colors and underline styles and colors, grapheme clusters, double-width/height lines, hyperlinks, shell-integration marks, palette changes, sixel images, the kitty keyboard protocol, and the reports programs ask for. `EncodeKey`, `EncodeMouse`, `EncodePaste`, `EncodeFocus` are what the host sends back; `Find` searches. No I/O and no drawing. |
-| **`terminal/view`** | The renderer: a `vt.Terminal` into RGBA pixels, in a monospaced font and a theme (a Windows Terminal color scheme), with Windows Terminal's cursor shapes, a selection (or block), search matches, hyperlinks, sixel images and a scrollbar with marks. Box drawing and block elements are drawn as shapes so lines meet. It redraws only the rows that changed. |
-| **`terminal/workspace`** | The window, as `.vsx` and `.vss`: the tab bar, split panes drawn into one surface (a `ui/viewport`), the command palette, find, menus and dialogs, keys and their actions, the pointer, selection and the clipboard, each pane's shell (`os/pty` + `vt`), and `settings.json`. `workspace.TerminalWindow(controller:)`. |
+| [`vt`](vt) | The emulator: bytes in, a screen of cells out. A DEC/xterm parser (UTF-8, CSI, OSC, DCS), the main and alternate screens, scrollback with reflow, scrolling regions and margins, SGR colors and underline styles, grapheme clusters, double-width and double-height lines, hyperlinks, shell-integration marks, sixel images, the kitty keyboard protocol, and the reports programs ask for. No I/O, no drawing. |
+| [`view`](view) | The renderer: a screen into pixels, in a monospaced font and a color scheme, with the cursor shapes, selections, search matches, images and the scrollbar. Box drawing is drawn as shapes so lines meet; only the rows that changed are drawn again. |
+| [`workspace`](workspace) | The window, in `.vsx` and `.vss`: the tab bar, panes, the command palette, find, menus and dialogs, the Settings tab, keys and actions, the pointer and the clipboard, each pane's shell under `os/pty`, and `settings.json`. |
 
 ```
 cmd/terminal   app.Run { <workspace.TerminalWindow /> }
       │
-workspace      tab bar (.vsx/.vss) · Controller · Shell ──► os/pty (the shell's terminal)
+workspace      tabs, panes, palette, settings (.vsx/.vss) · Controller · Shell ──► os/pty
       │                                   │
-      ├──── view (pixels) ◄──── vt (screen, scrollback, modes) ◄── bytes
+      ├──── view (pixels) ◄──── vt (screen, scrollback, modes) ◄── the shell's bytes
       │
 ui/viewport ── ui/app ── web (page, events) ── ui/window
 ```
 
-Output arrives in a task on the main actor: the shell's bytes go to
-`vt.Feed`, the replies it wants (cursor reports, device attributes) go back
-to the shell, and the viewport is invalidated; the next frame draws the
-rows that changed. 200,000 lines of `seq` reach the screen in about a
-quarter of a second (`check-ui`).
+The window's chrome is a `.vsx` page laid out and painted by the
+[`web`](https://github.com/vertex-language/web) engine, also written in
+Vertex; each pane's text is drawn straight into a `ui/viewport` beside it.
+A shell's output arrives in a task on the main actor: its bytes go to
+`vt.Feed`, the replies the screen owes (cursor reports, device attributes)
+go back, and the next frame draws the rows that changed -- 200,000 lines of
+`seq` reach the screen in about a quarter of a second.
 
-`TERM` is `xterm-256color`, with `COLORTERM=truecolor` and
-`TERM_PROGRAM=vertex-terminal`.
+## Development
 
----
+```bash
+vsc run check                         # the emulator's checks, offline
+vsc run check-ui                      # the window, headless, with real shells
+vsc run render-snapshot -- out.png    # what view draws, as a PNG
+```
 
-## What it does not do yet
-
-[FEATURES.md](FEATURES.md) has the list; the larger pieces are several
-windows (and quake mode), background images
-and acrylic, ligatures, regex search, copying as HTML, and Windows (where
-`os/pty` has no ConPTY yet).
-
-The bugs and gaps found on the way, in vsc and the packages it uses, are in
-`../vsc_TODO.md`.
-
----
-
-## Layout
+The app takes a few flags for tests and pictures: `--snapshot out.png
+--snapshot-after 2` draws the window two seconds in and quits, `--action <id>`
+runs an action at startup (`--action Terminal.ToggleCommandPalette`), and
+`--quit-after 3` quits as ⌘Q does. The screenshots above are
+[`docs/showcase.sh`](docs/showcase.sh); its header has the command.
 
 ```
 terminal/
-  vs.mod
-  FEATURES.md  Windows Terminal's features, and which are here
-  vt/          cell.vs, terminal.vs, parser.vs, csi.vs, input.vs, width.vs, sixel.vs
-  view/        view.vs, theme.vs, boxes.vs
-  workspace/   workspace.vsx, controller.vs, actions.vs, input.vs, panes.vs,
-               shell.vs, settings.vs, schemes.vs, session.vs, ui.vs, style.vss,
-               settingspage.vsx, settingsui.vs (the Settings tab), tabdrag.vs
-  docs/        screenshot.png, settings.png, and showcase.sh/.json that make them
+  vt/          the emulator
+  view/        the renderer
+  workspace/   the window, its Settings tab and settings.json
   cmd/
     terminal/         the app
     check/            vt's checks
     check-ui/         the window mounted headless, typed into, with real shells
     render-snapshot/  a sample screen drawn to a PNG
+  docs/        the screenshots, and the script that makes them
+  FEATURES.md  Windows Terminal's features, and which are here
 ```
+
+## Roadmap
+
+[FEATURES.md](FEATURES.md) has the full list. The larger pieces still to come
+are several windows (and quake mode), background images and acrylic,
+ligatures, regex search, copying as HTML, and Windows, where `os/pty` has no
+ConPTY yet.
 
 ## License
 
