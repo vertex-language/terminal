@@ -52,6 +52,16 @@ cd terminal
 vsc run terminal
 ```
 
+To have it everywhere, install it: `vsc install` builds the app into
+`~/.vertex/bin` (or `$VERTEXBIN`), and with that folder on your `PATH`,
+`terminal` opens it from anywhere.
+
+```bash
+vsc install terminal
+export PATH="$HOME/.vertex/bin:$PATH"   # once, in your shell's profile
+terminal
+```
+
 It opens your `$SHELL` as a login shell. It also takes Windows Terminal's
 `wt` command line, to open a layout:
 
