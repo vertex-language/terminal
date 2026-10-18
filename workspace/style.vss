@@ -467,7 +467,6 @@ package workspace
    cards of settings, light and quiet. */
 .window {
     --sbg: #ffffff;
-    --snav: #f9f9f9;
     --snav-border: #ececec;
     --snav-active: #ececec;
     --snav-hover: #f0f0f0;
@@ -513,7 +512,6 @@ package workspace
     box-sizing: border-box;
     overflow-y: auto;
     scrollbar-width: none;
-    background: var(--snav);
     border-right: 1px solid var(--snav-border);
 }
 
@@ -764,7 +762,6 @@ package workspace
         --panel-hover: #37373d;
         --muted: #8a8a8a;
         --sbg: #212121;
-        --snav: #181818;
         --snav-border: #2a2a2a;
         --snav-active: #2f2f2f;
         --snav-hover: #262626;
