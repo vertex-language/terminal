@@ -174,7 +174,7 @@ func modesAndReports() {
     t.Feed("\u{1b}[5;10H\u{1b}[6n")
     eq(text(t.TakeResponses()), "\u{1b}[5;10R", "cursor position report")
     t.Feed("\u{1b}[c")
-    eq(text(t.TakeResponses()), "\u{1b}[?62;22c", "device attributes")
+    eq(text(t.TakeResponses()), "\u{1b}[?65;1;4;6;21;22;28;52c", "device attributes")
     t.Feed("\u{1b}[18t")
     eq(text(t.TakeResponses()), "\u{1b}[8;24;80t", "size report")
     t.Feed("\u{1b}[?1h\u{1b}[?2004h\u{1b}[?1006h\u{1b}[?1002h\u{1b}[?25l\u{1b}[5 q")
@@ -290,6 +290,199 @@ func widths() {
     check(vt.CellWidth(0x20000) == 2 && vt.CellWidth(0x9FFF) == 2, "plane 2 and unassigned CJK are two (the UCD's defaults)")
 }
 
+func reflowing() {
+    let t = vt.Terminal(columns: 10, rows: 3)
+    t.Feed("abcdefghijKLMNO\r\nxy")
+    eq(row(t, 0), "abcdefghij", "a long line wraps")
+    t.Resize(columns: 20, rows: 3)
+    eq(row(t, 0), "abcdefghijKLMNO", "widening joins it again")
+    eq(row(t, 1), "xy", "the next line follows")
+    check(t.CursorX == 2 && t.CursorY == 1, "the cursor stays after its text (\(t.CursorX),\(t.CursorY))")
+    t.Resize(columns: 5, rows: 3)
+    eq(t.ScreenText(), "fghij\nKLMNO\nxy", "narrowing rewraps, the top to the scrollback")
+    check(t.ScrollbackCount == 1, "one row above (\(t.ScrollbackCount))")
+    eq(t.Text(fromColumn: 0, line: 0, toColumn: 4, line: 2), "abcdefghijKLMNO", "copied whole across the rewrap")
+    let w = vt.Terminal(columns: 5, rows: 2)
+    w.Feed("ab日本")
+    w.Resize(columns: 4, rows: 2)
+    eq(row(w, 0), "ab日", "a wide character is not split")
+    eq(row(w, 1), "本", "it goes to the next row")
+    let a = vt.Terminal(columns: 6, rows: 2)
+    a.Feed("\u{1b}[?1049habcdefgh")
+    a.Resize(columns: 3, rows: 2)
+    check(a.AltScreen && a.Row(0).Cells.count == 3, "the alternate screen is cut, not reflowed")
+}
+
+func graphemes() {
+    let t = vt.Terminal(columns: 10, rows: 1)
+    t.Feed("e\u{301}x")
+    eq(row(t, 0), "e\u{301}x", "a combining mark stays with its letter")
+    check(t.CursorX == 2, "and takes no cell")
+    let f = vt.Terminal(columns: 10, rows: 1)
+    f.Feed("\u{1F1EF}\u{1F1F5}!")
+    eq(row(f, 0), "\u{1F1EF}\u{1F1F5}!", "a flag is one cluster")
+    check(f.CursorX == 3, "two cells wide (\(f.CursorX))")
+    let z = vt.Terminal(columns: 10, rows: 1)
+    z.Feed("\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}.")
+    eq(row(z, 0), "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}.", "a ZWJ family is one cluster")
+    check(z.CursorX == 3, "in two cells (\(z.CursorX))")
+}
+
+func hyperlinks() {
+    let t = vt.Terminal(columns: 20, rows: 1)
+    t.Feed("a\u{1b}]8;;https://example.com\u{1b}\\link\u{1b}]8;;\u{1b}\\b")
+    let r = t.Row(0)
+    check(r.Cells[0].Link == 0 && r.Cells[5].Link == 0, "text around a link isn't linked")
+    eq(vt.LinkURI(r.Cells[1].Link), "https://example.com", "OSC 8 links its text")
+    check(r.Cells[4].Link == r.Cells[1].Link, "all of it")
+}
+
+func shellMarks() {
+    let t = vt.Terminal(columns: 20, rows: 6)
+    t.Feed("\u{1b}]133;A\u{07}$ \u{1b}]133;B\u{07}ls\r\n\u{1b}]133;C\u{07}one\r\ntwo\r\n\u{1b}]133;D;1\u{07}\u{1b}]133;A\u{07}$ ")
+    let marks = t.Marks()
+    check(marks.count == 3, "prompt, output, prompt marked (\(marks.count))")
+    check(t.Row(0).Mark == .prompt && t.Row(1).Mark == .output, "the kinds")
+    check(t.Row(0).ExitCode == 1, "the command's status on its prompt")
+    check(t.NextPrompt(after: 0) == 3 && t.PreviousPrompt(before: 3) == 0, "prompt to prompt")
+    if let out = t.CommandOutput(at: 0) {
+        check(out.From == 1 && out.To == 2, "the command's output lines")
+    } else {
+        check(false, "the command's output lines")
+    }
+}
+
+func colors() {
+    let t = vt.Terminal()
+    t.Feed("\u{1b}]4;1;rgb:ff/80/00\u{07}")
+    let c = t.PaletteColor(1)
+    check(c != nil && c!.R == 0xFF && c!.G == 0x80 && c!.B == 0, "OSC 4 sets a palette color")
+    t.Feed("\u{1b}]4;1;?\u{07}")
+    eq(text(t.TakeResponses()), "\u{1b}]4;1;rgb:ffff/8080/0000\u{1b}\\", "and reports it")
+    t.Feed("\u{1b}]104;1\u{07}")
+    check(t.PaletteColor(1) == nil, "OSC 104 resets it")
+    t.Feed("\u{1b}]10;#102030\u{07}\u{1b}]11;rgb:4/5/6\u{07}")
+    check(t.ForegroundOverride != nil && t.ForegroundOverride!.G == 0x20, "OSC 10 sets the foreground")
+    check(t.BackgroundOverride != nil && t.BackgroundOverride!.R == 0x44, "OSC 11, one hex digit each")
+    t.Feed("\u{1b}]110\u{07}\u{1b}]111\u{07}")
+    check(t.ForegroundOverride == nil && t.BackgroundOverride == nil, "OSC 110, 111 reset them")
+    t.Feed("\u{1b}[58:2::1:2:3m\u{1b}[4:4mU")
+    check(t.Row(0).Cells[0].Ul == vt.Color.RGB(1, 2, 3) && t.Row(0).Cells[0].Has(vt.Attr.dottedUnderline), "underline color and a dotted underline")
+}
+
+func titlesAndReports() {
+    let t = vt.Terminal(columns: 80, rows: 24)
+    t.Feed("\u{1b}]2;one\u{07}\u{1b}[22t\u{1b}]2;two\u{07}")
+    eq(t.Title, "two", "a title set over a pushed one")
+    t.Feed("\u{1b}[23t")
+    eq(t.Title, "one", "XTWINOPS 23 pops it")
+    t.Feed("\u{1b}[1;31m\u{1b}P$qm\u{1b}\\")
+    eq(text(t.TakeResponses()), "\u{1b}P1$r0;1;31m\u{1b}\\", "DECRQSS m")
+    t.Feed("\u{1b}[5;20r\u{1b}P$qr\u{1b}\\")
+    eq(text(t.TakeResponses()), "\u{1b}P1$r5;20r\u{1b}\\", "DECRQSS r")
+    t.Feed("\u{1b}[=c")
+    eq(text(t.TakeResponses()), "\u{1b}P!|00000000\u{1b}\\", "DA3")
+    t.Feed("\u{1b}]9;4;1;42\u{07}")
+    check(t.Progress == .normal && t.ProgressValue == 42, "OSC 9;4 progress")
+    t.Feed("\u{1b}]777;notify;Done;Build finished\u{07}")
+    let n = t.TakeNotifications()
+    check(n.count == 1 && n[0].Title == "Done" && n[0].Body == "Build finished", "OSC 777 notification")
+    t.Feed("\u{1b}]9;9;\"/tmp/x\"\u{07}")
+    eq(t.WorkingDirectory ?? "nil", "/tmp/x", "OSC 9;9 working directory")
+    t.Feed("\u{1b}[?2026h")
+    check(t.SynchronizedOutput, "2026 synchronized output")
+    t.Feed("\u{1b}[?2026$p")
+    eq(text(t.TakeResponses()), "\u{1b}[?2026;1$y", "and DECRQM knows it")
+}
+
+func margins() {
+    let t = vt.Terminal(columns: 10, rows: 3)
+    t.Feed("0123456789\r\n0123456789\r\n0123456789")
+    t.Feed("\u{1b}[?69h\u{1b}[3;6s")   // columns 3-6
+    t.Feed("\u{1b}[1;3H\u{1b}[2@")
+    eq(row(t, 0), "01  236789", "ICH inside the margins")
+    t.Feed("\u{1b}[2;3H\u{1b}[P")
+    eq(row(t, 1), "01345 6789", "DCH inside the margins")
+    t.Feed("\u{1b}[3;1H\u{1b}[1;3r\u{1b}[3;3H\n")
+    eq(row(t, 1), "0123456789", "scrolling inside the margins moves their columns up")
+    eq(row(t, 2), "01    6789", "and blanks them at the bottom")
+    let w = vt.Terminal(columns: 10, rows: 2)
+    w.Feed("\u{1b}[?69h\u{1b}[1;5s\u{1b}[1;1Habcdefg")
+    eq(row(w, 0), "abcde", "text wraps at the right margin")
+    eq(row(w, 1), "fg", "onto the left margin")
+}
+
+func rectangles() {
+    let t = vt.Terminal(columns: 6, rows: 3)
+    t.Feed("abcdef\r\nghijkl\r\nmnopqr")
+    t.Feed("\u{1b}[42;1;2;2;3$x")
+    eq(row(t, 0), "a**def", "DECFRA fills")
+    eq(row(t, 1), "g**jkl", "both rows")
+    t.Feed("\u{1b}[1;1;2;2$z")
+    eq(row(t, 0), "  *def", "DECERA erases")
+    t.Feed("\u{1b}[3;4;3;6;1;1$v")
+    eq(row(t, 0), "pqrdef", "DECCRA copies")
+    t.Feed("\u{1b}[2*x\u{1b}[3;1;3;2;1$r")
+    check(t.Row(2).Cells[0].Has(vt.Attr.bold) && !t.Row(2).Cells[2].Has(vt.Attr.bold), "DECCARA in a rectangle")
+    t.Feed("\u{1b}[1;1H\u{1b}[1\"qPP\u{1b}[0\"q\u{1b}[?2K")
+    eq(row(t, 0), "PP", "DECSEL keeps protected cells")
+    t.Feed("\u{1b}[1;1H\u{1b}[2'}")
+    eq(row(t, 0), "  PP", "DECIC inserts columns")
+}
+
+func kittyKeys() {
+    let t = vt.Terminal()
+    let none = vt.Modifiers()
+    t.Feed("\u{1b}[>1u")
+    check(t.KittyFlags == 1, "CSI > u pushes the flags")
+    eq(text(t.EncodeKey(key: "Escape", code: "Escape", none)), "\u{1b}[27u", "Escape disambiguated")
+    eq(text(t.EncodeKey(key: "c", code: "KeyC", vt.Modifiers(control: true))), "\u{1b}[99;5u", "Ctrl-C as CSI u")
+    eq(text(t.EncodeKey(key: "a", code: "KeyA", none)), "nil", "a plain letter is still text")
+    eq(text(t.EncodeKey(key: "Enter", code: "Enter", vt.Modifiers(shift: true))), "\u{1b}[13;2u", "Shift-Enter")
+    t.Feed("\u{1b}[=9;1u")
+    eq(text(t.EncodeKey(key: "a", code: "KeyA", none)), "\u{1b}[97u", "all keys as escapes")
+    t.Feed("\u{1b}[?u")
+    eq(text(t.TakeResponses()), "\u{1b}[?9u", "the flags, asked")
+    t.Feed("\u{1b}[<u")
+    check(t.KittyFlags == 0, "CSI < u pops them")
+    t.Feed("\u{1b}[?67h")
+    eq(text(t.EncodeKey(key: "Backspace", code: "Backspace", none)), "\u{08}", "DECBKM: Backspace sends BS")
+}
+
+func mouseFormats() {
+    let t = vt.Terminal()
+    let none = vt.Modifiers()
+    t.Feed("\u{1b}[?1000h\u{1b}[?1015h")
+    eq(text(t.EncodeMouse(button: 0, column: 2, row: 3, kind: "press", none)), "\u{1b}[32;3;4M", "urxvt mouse")
+    t.Feed("\u{1b}[?1016h")
+    eq(text(t.EncodeMouse(button: 0, column: 2, row: 3, kind: "press", none, pixelX: 20, pixelY: 30)), "\u{1b}[<0;21;31M", "SGR pixel mouse")
+}
+
+func sixels() {
+    let t = vt.Terminal(columns: 20, rows: 10)
+    t.CellPixelWidth = 4
+    t.CellPixelHeight = 6
+    // Two bands of red, 8 pixels wide.
+    t.Feed("\u{1b}Pq#1;2;100;0;0#1!8~-!8~\u{1b}\\")
+    check(t.Images.count == 1, "a sixel image is kept")
+    if let img = t.Images.first {
+        check(img.Width == 8 && img.Height == 12, "its size (\(img.Width)×\(img.Height))")
+        check(img.Pixels[0] == 255 && img.Pixels[1] == 0 && img.Pixels[3] == 255, "its color")
+        check(t.ImageLine(img) == 0 && img.Column == 0, "where it was drawn")
+    }
+    check(t.CursorY == 2 && t.CursorX == 0, "the cursor goes below it (\(t.CursorX),\(t.CursorY))")
+}
+
+func searching() {
+    let t = vt.Terminal(columns: 8, rows: 3)
+    t.Feed("Hello world\r\nhello")
+    let hits = t.Find("hello")
+    check(hits.count == 2, "two matches, case folded (\(hits.count))")
+    check(hits[0].StartLine == 0 && hits[0].StartColumn == 0, "the first")
+    check(t.Find("lo wo").count == 1, "a match across a wrap")
+    check(t.Find("hello", caseSensitive: true).count == 1, "case-sensitive")
+}
+
 func throughput() {
     // A big feed doesn't fall over: 2 MB of colored text through a small
     // screen with a scrollback.
@@ -321,6 +514,18 @@ scrollbackView()
 keys()
 mouse()
 widths()
+reflowing()
+graphemes()
+hyperlinks()
+shellMarks()
+colors()
+titlesAndReports()
+margins()
+rectangles()
+kittyKeys()
+mouseFormats()
+sixels()
+searching()
 throughput()
 
 if failures > 0 {

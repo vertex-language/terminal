@@ -16,9 +16,11 @@ let pixels = r.Draw(term, width: w, height: h, scale: 2,
 
 ## Types
 
-- **`Renderer`** (class): `Draw`, `GridSize(width:height:scale:)`, `CellSize(scale:)`, `CellAt(x:y:scale:columns:rows:)`, `SetFont(families:size:)`, `SetTheme(_:)`, `Invalidate()`; `Padding`, `LineSpacing`.
-- **`Theme`** (struct): foreground, background, cursor, cursor text, selection and the 16 ANSI colors; `.dark` and `.light`.
-- **`Selection`** (struct): from one cell to another in absolute lines, so it stays on its text as output scrolls.
+- **`Renderer`** (class): `Draw(_:width:height:scale:cursor:selection:overlay:)`, `GridSize`, `CellSize`, `CellPixels`, `CellAt`, `OnScrollbar`, `ScrollOffsetAt`, `SetFont(families:size:weight:)`, `SetTheme(_:)`, `Invalidate()`; `Padding`, `LineSpacing`, `CellWidthScale`, `CursorStyle`, `CursorHeight`, `CursorColor`, `IntenseBold`, `IntenseBright`, `AdjustIndistinguishable`, `ScrollbarWidth`, `Drew`.
+- **`Theme`** (struct): foreground, background, cursor, cursor text, selection, search matches and the 16 ANSI colors; `.dark` and `.light`. `ParseColor`, `ColorHex`, `hex`.
+- **`Selection`** (struct): from one cell to another in absolute lines, so it stays on its text as output scrolls; or a block.
+- **`Overlay`** (struct): search matches and the current one, the hovered link or URL, blinking text's phase.
+- **`CursorStyle`** (enum): bar, underscore, double underscore, filled box, empty box, vintage.
 - **`CursorState`** (struct): shown (blink), and focused (filled) or not (an outline).
 
 The font is the first of its families that is really monospaced (`SF Mono`,

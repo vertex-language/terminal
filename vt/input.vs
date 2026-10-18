@@ -37,6 +37,7 @@ extension Terminal {
     /// shells' Meta bindings want.
     public func EncodeKey(key: string, code: string, _ mods: Modifiers, altSendsEscape: bool = false) -> [uint8]? {
         if mods.Meta { return nil }
+        if KittyFlags != 0, let k = kittyKey(key: key, code: code, mods) { return k }
         let m = mods.param
         let esc: uint8 = 0x1B
         func csi(_ final: string, _ n: int = 1) -> [uint8] {
@@ -62,7 +63,8 @@ extension Terminal {
             if newlineMode { return alt ? [esc, 13, 10] : [13, 10] }
             return alt ? [esc, 13] : [13]
         case "Backspace":
-            let b: uint8 = mods.Control ? 0x08 : 0x7F
+            // DECBKM swaps them.
+            let b: uint8 = mods.Control != BackspaceSendsBS ? 0x08 : 0x7F
             return alt ? [esc, b] : [b]
         case "Tab":
             if mods.Shift { return [uint8]("\u{1b}[Z".utf8) }
@@ -130,6 +132,87 @@ extension Terminal {
         return nil
     }
 
+    /// A key as the kitty keyboard protocol sends it, for the flags the
+    /// program pushed; nil where the legacy encoding is the same, or the
+    /// key is plain text.
+    func kittyKey(key: string, code: string, _ mods: Modifiers) -> [uint8]? {
+        let f = KittyFlags
+        let all = f & 8 != 0
+        let m = mods.param
+        var number = 0
+        var final = "u"
+        switch key {
+        case "Escape": number = 27
+        case "Enter": number = 13
+        case "Tab": number = 9
+        case "Backspace": number = 127
+        case "Insert": number = 2; final = "~"
+        case "Delete": number = 3; final = "~"
+        case "ArrowLeft": number = 1; final = "D"
+        case "ArrowRight": number = 1; final = "C"
+        case "ArrowUp": number = 1; final = "A"
+        case "ArrowDown": number = 1; final = "B"
+        case "Home": number = 1; final = "H"
+        case "End": number = 1; final = "F"
+        case "PageUp": number = 5; final = "~"
+        case "PageDown": number = 6; final = "~"
+        case "F1": number = 1; final = "P"
+        case "F2": number = 1; final = "Q"
+        case "F3": number = 13; final = "~"
+        case "F4": number = 1; final = "S"
+        case "F5": number = 15; final = "~"
+        case "F6": number = 17; final = "~"
+        case "F7": number = 18; final = "~"
+        case "F8": number = 19; final = "~"
+        case "F9": number = 20; final = "~"
+        case "F10": number = 21; final = "~"
+        case "F11": number = 23; final = "~"
+        case "F12": number = 24; final = "~"
+        default: break
+        }
+        func seq(_ n: int, _ fin: string, text: string = "") -> [uint8] {
+            var body = n == 1 && fin != "u" && m == 1 ? "" : "\(n)"
+            if m > 1 || !text.isEmpty { body += ";\(m)" }
+            if !text.isEmpty { body += ";" + text }
+            return [uint8]("\u{1b}[\(body)\(fin)".utf8)
+        }
+        if number != 0 {
+            if final != "u" {
+                // Arrows, the editing keys and F1-F12: as legacy writes
+                // them, unless every key is to be an escape.
+                return all ? seq(number, final) : nil
+            }
+            if number == 27 { return seq(27, "u") }
+            if all || (m > 1 && !(number == 9 && m == 2)) { return seq(number, "u") }
+            return nil
+        }
+        // A text key: by its unshifted character, where the layout puts it.
+        var cp: uint32 = 0
+        let cb = [uint8](code.utf8)
+        if cb.count == 4 && code.hasPrefix("Key") {
+            cp = uint32(cb[3]) + 0x20
+        } else if cb.count == 6 && code.hasPrefix("Digit") {
+            cp = uint32(cb[5])
+        } else if code == "Space" {
+            cp = 32
+        } else {
+            let scalars = Array(key.unicodeScalars)
+            if scalars.count != 1 { return nil }
+            cp = foldRune(uint32(scalars[0].value))
+        }
+        let modsBeyondShift = mods.Control || mods.Alt
+        if all {
+            var text = ""
+            if f & 16 != 0 && !modsBeyondShift {
+                let scalars = Array(key.unicodeScalars)
+                text = scalars.map { "\($0.value)" }.joined(separator: ":")
+            }
+            return seq(int(cp), "u", text: text)
+        }
+        if f & 1 != 0 && modsBeyondShift { return seq(int(cp), "u") }
+        return nil
+    }
+
     /// Text typed (or pasted without bracketing): its bytes, with newlines
     /// as carriage returns, as a terminal sends Enter.
     public func EncodeText(_ text: string) -> [uint8] {
@@ -176,7 +259,8 @@ extension Terminal {
     /// it asked for mouse reports, else nil. button: 0 left, 1 middle, 2
     /// right, 64/65 wheel up and down; kind: "press", "release", "move"
     /// (with the button held, or -1 for none).
-    public func EncodeMouse(button: int, column: int, row: int, kind: string, _ mods: Modifiers) -> [uint8]? {
+    public func EncodeMouse(button: int, column: int, row: int, kind: string, _ mods: Modifiers,
+                            pixelX: int = -1, pixelY: int = -1) -> [uint8]? {
         if Mouse == .off { return nil }
         if kind == "move" {
             if Mouse == .clicks { return nil }
@@ -189,13 +273,30 @@ extension Terminal {
         if mods.Control { b += 16 }
         let x = max(0, min(column, Columns - 1)) + 1
         let y = max(0, min(row, Rows - 1)) + 1
-        if MouseSGR {
+        switch MouseFormat {
+        case .sgr, .sgrPixels:
             let f = kind == "release" ? "m" : "M"
+            if MouseFormat == .sgrPixels && pixelX >= 0 {
+                return [uint8]("\u{1b}[<\(b);\(pixelX + 1);\(pixelY + 1)\(f)".utf8)
+            }
             return [uint8]("\u{1b}[<\(b);\(x);\(y)\(f)".utf8)
+        default:
+            break
         }
-        // X10 encoding: a release is button 3; coordinates past 223 can't
-        // be said.
+        // The others: a release is button 3.
         if kind == "release" && button < 64 { b = (b & ~3) | 3 }
+        if MouseFormat == .urxvt {
+            return [uint8]("\u{1b}[\(32 + b);\(x);\(y)M".utf8)
+        }
+        if MouseFormat == .utf8 {
+            // Each coordinate as UTF-8, to 2015.
+            if x > 2015 || y > 2015 { return nil }
+            var out: [uint8] = [0x1B, 0x5B, 0x4D, uint8(32 + b)]
+            appendUTF8(&out, uint32(32 + x))
+            appendUTF8(&out, uint32(32 + y))
+            return out
+        }
+        // X10: coordinates past 223 can't be said.
         if x > 223 || y > 223 { return nil }
         return [0x1B, 0x5B, 0x4D, uint8(32 + b), uint8(32 + x), uint8(32 + y)]
     }

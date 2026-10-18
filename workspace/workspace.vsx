@@ -1,418 +1,371 @@
-// Package workspace is the terminal app's window: a tab bar over a
-// terminal surface, each tab a shell under a pseudo-terminal (os/pty)
-// whose screen vt keeps and view draws. cmd/terminal runs it in a window;
-// cmd/check-ui mounts it headless and types into it.
+// Package workspace is the terminal app's window, as Windows Terminal's:
+// a tab bar over the terminal surface; each tab's panes, split side by
+// side or one above another, each a shell under a pseudo-terminal
+// (os/pty) whose screen vt keeps and view draws; a command palette,
+// find, menus and dialogs over it; and Windows Terminal's settings.json,
+// its profiles, color schemes, actions and keys. cmd/terminal runs it in
+// a window; cmd/check-ui mounts it headless and types into it.
 //
 //     app.Run(title: "Terminal") { <workspace.TerminalWindow /> }
 package workspace
 
 import (
-    "os/env"
     "terminal/view"
     "terminal/vt"
     "ui/app"
     "ui/component"
     "ui/state"
     "ui/viewport"
-    "ui/window"
     "web/dom"
     "web/html"
 )
 
-/// What the window holds: the tabs, the one terminal view that shows
-/// the tab in front, and what keys, the pointer and the wheel do to it.
 @MainActor
-public final class Controller {
-    let ws = Workspace()
-    let renderer = view.Renderer()
-    var handle: viewport.Handle? = nil
-    var surfaceNode: component.Ref = nil
-    var focused = false
-    var blinkOn = true
-    var blinkEpoch = 0
-    /// The next text event is a key already sent (Option as Meta).
-    var swallowText = false
-    let optionAsMeta = (env.Get("TERMINAL_OPTION_AS_META") ?? "") == "1"
-    // The pointer.
-    var selecting = false
-    var anchorColumn = 0
-    var anchorLine = 0
-    var mouseButton = -1
-    /// The press in progress is the program's (mouse reporting), not a
-    /// selection.
-    var mouseReported = false
-    var wheel: float32 = 0
-    // The last frame's geometry.
-    var scale: float32 = 2
-    var gridColumns = 80
-    var gridRows = 24
-    var shownTheme = ""
-
-    public init() {}
-
-    var current: Shell? { return ws.Current?.shell }
-
-    // MARK: - Reading it (for a host, or a test)
-
-    /// How many tabs are open.
-    public var TabCount: int { return ws.Tabs.count }
-
-    /// The titles of the tabs, in order, and which is in front.
-    public var TabTitles: [string] { return ws.Tabs.map { $0.Title } }
-    public var ActiveIndex: int { return ws.Index(of: ws.Active) ?? -1 }
-
-    /// The text of the screen of the tab in front.
-    public func ScreenText() -> string {
-        return current?.term.ScreenText() ?? ""
-    }
-
-    /// The text selected in the tab in front, or "".
-    public func SelectedText() -> string {
-        guard let shell = current, let sel = shell.selection?.Ordered, !sel.IsEmpty else { return "" }
-        return shell.term.Text(fromColumn: sel.StartColumn, line: sel.StartLine, toColumn: sel.EndColumn, line: sel.EndLine)
-    }
-
-    /// The size of the terminal in front, in cells.
-    public var GridSize: (Columns: int, Rows: int) {
-        guard let t = current?.term else { return (Columns: 0, Rows: 0) }
-        return (Columns: t.Columns, Rows: t.Rows)
-    }
-
-    func redraw() {
-        handle?.Invalidate()
-    }
-
-    /// Gives the terminal surface the keyboard.
-    func focusSurface() {
-        if let n = surfaceNode { component.Focus(n) }
-    }
-
-    // MARK: - Tabs
-
-    func NewTab() {
-        NewTab(dir: current?.Directory)
-    }
-
-    func NewTab(dir: string?) {
-        let id = ws.next
-        ws.next += 1
-        let shell = Shell(columns: gridColumns, rows: gridRows)
-        let tab = Tab(id: id, shell: shell)
-        shell.owner = self
-        shell.tabID = id
-        ws.Tabs.append(tab)
-        Select(id)
-        shell.Start(dir: dir)
-        tab.UpdateTitle()
-        app.SetTitle(tab.Title)
-    }
-
-    /// A tab's shell wrote something.
-    func ShellOutput(_ id: int) {
-        guard let i = ws.Index(of: id) else { return }
-        let t = ws.Tabs[i]
-        t.UpdateTitle()
-        if ws.Active == id {
-            redraw()
-            app.SetTitle(t.Title)
-        } else if t.shell.term.Bells != t.seenBells {
-            t.Bell = true
-        }
-        t.seenBells = t.shell.term.Bells
-    }
-
-    /// A tab's shell ended: its tab closes.
-    func ShellExited(_ id: int) {
-        Close(id)
-    }
-
-    func Select(_ id: int) {
-        if ws.Active != id {
-            ws.Active = id
-            if let i = ws.Index(of: id) { ws.Tabs[i].Bell = false }
-            renderer.Invalidate()
-            if let t = ws.Current { app.SetTitle(t.Title) }
-        }
-        blinkOn = true
-        redraw()
-        focusSurface()
-    }
-
-    func Close(_ id: int) {
-        guard let i = ws.Index(of: id) else { return }
-        let tab = ws.Tabs[i]
-        tab.shell.Close()
-        ws.Tabs.remove(at: i)
-        if ws.Tabs.isEmpty {
-            app.Quit()
-            app.RequestFrame()
-            return
-        }
-        if ws.Active == id {
-            Select(ws.Tabs[min(i, ws.Tabs.count - 1)].ID)
-        }
-    }
-
-    func Step(_ by: int) {
-        guard let i = ws.Index(of: ws.Active), ws.Tabs.count > 1 else { return }
-        let n = ws.Tabs.count
-        Select(ws.Tabs[((i + by) % n + n) % n].ID)
-    }
-
-    // MARK: - Keys
-
-    func KeyDown(_ e: dom.KeyboardEvent) {
-        guard let shell = current else { return }
-        let term = shell.term
-        swallowText = false
-        if e.Meta {
-            if shortcut(e, shell) { e.PreventDefault() }
-            return
-        }
-        if e.Control && e.Code == "Tab" {
-            Step(e.Shift ? -1 : 1)
-            e.PreventDefault()
-            return
-        }
-        if e.Shift && !e.Control && !e.Alt && (e.Code == "PageUp" || e.Code == "PageDown") {
-            term.ScrollView(by: e.Code == "PageUp" ? term.Rows - 1 : -(term.Rows - 1))
-            redraw()
-            e.PreventDefault()
-            return
-        }
-        let mods = vt.Modifiers(shift: e.Shift, alt: e.Alt, control: e.Control, meta: e.Meta)
-        if let bytes = term.EncodeKey(key: e.Key, code: e.Code, mods, altSendsEscape: optionAsMeta) {
-            e.PreventDefault()
-            if e.Alt && optionAsMeta { swallowText = true }
-            typed(shell, bytes)
-        }
-    }
-
-    /// The ⌘ shortcuts; true where the key was one.
-    func shortcut(_ e: dom.KeyboardEvent, _ shell: Shell) -> bool {
-        switch e.Code {
-        case "KeyT": NewTab()
-        case "KeyW": Close(ws.Active)
-        case "KeyC": copySelection(shell)
-        case "KeyV":
-            let text = window.ClipboardText()
-            if !text.isEmpty { typed(shell, shell.term.EncodePaste(text)) }
-        case "KeyA":
-            let t = shell.term
-            shell.selection = view.Selection(startColumn: 0, startLine: 0, endColumn: t.Columns - 1,
-                                             endLine: t.ScrollbackCount + t.Rows - 1)
-            redraw()
-        case "KeyK":
-            shell.term.ClearScrollback()
-            shell.selection = nil
-            // ^L: the shell clears the screen and draws its prompt again.
-            shell.Send([12])
-            redraw()
-        case "Equal": zoom(1)
-        case "Minus": zoom(-1)
-        case "Digit0": zoom(0)
-        case "BracketLeft": if e.Shift { Step(-1) } else { return false }
-        case "BracketRight": if e.Shift { Step(1) } else { return false }
-        case "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9":
-            let b = [uint8](e.Code.utf8)
-            let n = int(b[5] - 0x30)
-            // ⌘9 is the last tab, as browsers have it.
-            let i = n == 9 ? ws.Tabs.count - 1 : n - 1
-            if i < ws.Tabs.count { Select(ws.Tabs[i].ID) }
-        default:
-            return false
-        }
-        return true
-    }
-
-    func zoom(_ step: int) {
-        let size: float32 = step == 0 ? 13 : renderer.FontSize + float32(step)
-        renderer.SetFont(size: size)
-        redraw()
-    }
-
-    func BeforeInput(_ e: dom.InputEvent) {
-        if swallowText {
-            swallowText = false
-            return
-        }
-        guard let shell = current else { return }
-        typed(shell, shell.term.EncodeText(e.Data))
-    }
-
-    /// Sends what the user typed: the view goes back to the screen, the
-    /// selection goes, and the cursor shows.
-    func typed(_ shell: Shell, _ bytes: [uint8]) {
-        shell.term.ScrollToBottom()
-        shell.selection = nil
-        blinkOn = true
-        blinkEpoch += 1
-        shell.Send(bytes)
-        redraw()
-    }
-
-    func copySelection(_ shell: Shell) {
-        guard let s = shell.selection?.Ordered, !s.IsEmpty else { return }
-        let text = shell.term.Text(fromColumn: s.StartColumn, line: s.StartLine, toColumn: s.EndColumn, line: s.EndLine)
-        if !text.isEmpty { window.SetClipboardText(text) }
-    }
-
-    func Focus(_ on: bool) {
-        focused = on
-        blinkOn = true
-        if let shell = current, let report = shell.term.EncodeFocus(on) { shell.Send(report) }
-        redraw()
-    }
-
-    // MARK: - The pointer
-
-    /// The cell under a pointer event.
-    func cellAt(_ x: float32, _ y: float32) -> (Column: int, Row: int, Right: bool) {
-        let o = handle?.Origin ?? (X: 0, Y: 0)
-        let t = current?.term
-        return renderer.CellAt(x: x - o.X, y: y - o.Y, scale: scale, columns: t?.Columns ?? 80, rows: t?.Rows ?? 24)
-    }
-
-    func mods(_ e: dom.MouseEvent) -> vt.Modifiers {
-        return vt.Modifiers(shift: e.Shift, alt: e.Alt, control: e.Control, meta: e.Meta)
-    }
-
-    func PointerDown(_ e: dom.PointerEvent) {
-        e.PreventDefault()
-        focusSurface()
-        guard let shell = current else { return }
-        let term = shell.term
-        let cell = cellAt(e.X, e.Y)
-        // Shift takes the mouse back from a program that asked for it, to
-        // select, as xterm has it.
-        mouseReported = term.Mouse != .off && !e.Shift
-        if mouseReported {
-            mouseButton = Int(e.Button)
-            if let b = term.EncodeMouse(button: mouseButton, column: cell.Column, row: cell.Row, kind: "press", mods(e)) {
-                shell.Send(b)
-            }
-            return
-        }
-        let line = term.ViewTop + cell.Row
-        if e.Button != 0 { return }
-        if e.Clicks >= 3 {
-            shell.selection = view.Selection(startColumn: 0, startLine: line, endColumn: term.Columns - 1, endLine: line)
-            selecting = false
-        } else if e.Clicks == 2 {
-            let w = wordAt(term, cell.Column, line)
-            shell.selection = view.Selection(startColumn: w.0, startLine: line, endColumn: w.1, endLine: line)
-            selecting = false
-        } else {
-            shell.selection = nil
-            anchorColumn = cell.Column
-            anchorLine = line
-            selecting = true
-        }
-        redraw()
-    }
-
-    func PointerMove(_ e: dom.PointerEvent) {
-        guard let shell = current else { return }
-        let term = shell.term
-        // Movement goes to the program during its own press, or with no
-        // button held where it asked for all motion; a Shift press is a
-        // selection.
-        if term.Mouse != .off && (mouseReported || (!e.Pressed && !selecting)) {
-            if term.Mouse == .motion || (e.Pressed && mouseButton >= 0) {
-                let cell = cellAt(e.X, e.Y)
-                if let b = term.EncodeMouse(button: e.Pressed ? mouseButton : -1, column: cell.Column, row: cell.Row, kind: "move", mods(e)) {
-                    shell.Send(b)
+func TabItem(c: Controller, t: Tab) -> component.Node {
+    let ws = c.ws
+    let ui = c.ui
+    return (
+        <div class="tab" class:active={c.IsFront(t.ID)}
+             style:background={c.IsFront(t.ID) ? ui.SurfaceColor : ""}
+             style:color={c.IsFront(t.ID) ? ui.SurfaceText : ""} class:bell={t.Bell} class:colored={!t.Color.isEmpty}
+             class:dragging={ui.Dragging == t.ID}
+             title={t.Shown}
+             onPointerDown={e in
+                if e.Button == 1 {
+                    c.Close(t.ID)
+                } else if e.Button == 0 {
+                    c.Select(t.ID)
+                    ui.Dragging = t.ID
                 }
-            }
-            return
-        }
-        if !selecting || !e.Pressed { return }
-        let cell = cellAt(e.X, e.Y)
-        let line = term.ViewTop + cell.Row
-        var endCol = cell.Column
-        let forward = line > anchorLine || (line == anchorLine && cell.Column >= anchorColumn)
-        // The edge rounds to the nearer side of the cell under the pointer.
-        if forward && !cell.Right { endCol -= 1 }
-        var startCol = anchorColumn
-        if !forward && cell.Right { endCol += 1 }
-        if !forward { startCol = max(0, anchorColumn - 1) }
-        if forward && line == anchorLine && endCol < anchorColumn {
-            shell.selection = nil
-        } else {
-            shell.selection = view.Selection(startColumn: startCol, startLine: anchorLine, endColumn: max(0, endCol), endLine: line)
-        }
-        redraw()
-    }
-
-    func PointerUp(_ e: dom.PointerEvent) {
-        guard let shell = current else { return }
-        let term = shell.term
-        if mouseReported && mouseButton >= 0 {
-            let cell = cellAt(e.X, e.Y)
-            if let b = term.EncodeMouse(button: mouseButton, column: cell.Column, row: cell.Row, kind: "release", mods(e)) {
-                shell.Send(b)
-            }
-            mouseButton = -1
-            mouseReported = false
-            return
-        }
-        mouseReported = false
-        selecting = false
-    }
-
-    func Wheel(_ e: dom.WheelEvent) {
-        e.PreventDefault()
-        guard let shell = current else { return }
-        let term = shell.term
-        let lineH = renderer.CellSize(scale: scale).Height
-        wheel += e.DeltaY
-        let lines = int(wheel / lineH)
-        if lines == 0 { return }
-        wheel -= float32(lines) * lineH
-        if term.Mouse != .off && !e.Shift {
-            let cell = cellAt(e.X, e.Y)
-            let m = vt.Modifiers(shift: e.Shift, alt: e.Alt, control: e.Control, meta: e.Meta)
-            for _ in 0..<abs(lines) {
-                if let b = term.EncodeMouse(button: lines < 0 ? 64 : 65, column: cell.Column, row: cell.Row, kind: "press", m) {
-                    shell.Send(b)
+             }
+             onPointerUp={_ in ui.Dragging = 0}
+             onClick={_ in c.Select(t.ID)}
+             onMouseEnter={_ in
+                // Dragging a tab over another moves it there.
+                if ui.Dragging != 0 && ui.Dragging != t.ID, let from = ws.Index(of: ui.Dragging), let to = ws.Index(of: t.ID) {
+                    let moved = ws.Tabs.remove(at: from)
+                    ws.Tabs.insert(moved, at: to)
                 }
-            }
-        } else if term.AltScreen && term.AlternateScroll {
-            let key = lines < 0 ? "ArrowUp" : "ArrowDown"
-            for _ in 0..<abs(lines) {
-                if let b = term.EncodeKey(key: key, code: key, vt.Modifiers()) { shell.Send(b) }
-            }
-        } else {
-            term.ScrollView(by: -lines)
-            redraw()
-        }
+             }
+             onDoubleClick={_ in c.startRename(t.ID)}
+             onContextMenu={e in
+                e.PreventDefault()
+                c.openTabMenu(t.ID, x: e.X, y: e.Y)
+             }>
+            {if c.IsFront(t.ID) {
+                <div class="foot left" style:color={ui.SurfaceColor}>
+                    <svg width="10" height="10" viewBox="0 0 10 10"><path d="M10 0 L10 10 L0 10 C5.5 10 10 5.5 10 0 Z" fill="currentColor" /></svg>
+                </div>
+            }}
+            {if c.IsFront(t.ID) {
+                <div class="foot right" style:color={ui.SurfaceColor}>
+                    <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 0 L0 10 L10 10 C4.5 10 0 5.5 0 0 Z" fill="currentColor" /></svg>
+                </div>
+            }}
+            {if !t.Color.isEmpty { <span class="stripe" style:background={t.Color}></span> }}
+            {if !t.Icon.isEmpty {
+                <span class="icon">{t.Icon}</span>
+            } else {
+                <span class="favicon" class:bell={t.Bell}>
+                    <svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 2.5 C2 2.2 2.2 2 2.5 2 L13.5 2 C13.8 2 14 2.2 14 2.5 L14 13.5 C14 13.8 13.8 14 13.5 14 L2.5 14 C2.2 14 2 13.8 2 13.5 Z M3.2 3.2 L3.2 12.8 L12.8 12.8 L12.8 3.2 Z M4.6 5.4 L5.4 4.6 L8.2 7.4 L5.4 10.2 L4.6 9.4 L6.6 7.4 Z M8.4 9.6 L11.4 9.6 L11.4 10.6 L8.4 10.6 Z" fill="currentColor" /></svg>
+                </span>
+            }}
+            <span class="dot"></span>
+            {if ui.Renaming == t.ID {
+                <input class="rename" value={ui.RenameText} autofocus
+                       onInput={e in ui.RenameText = e.Value}
+                       onKeyDown={e in
+                           e.StopPropagation()
+                           if e.Key == "Enter" { c.commitRename() }
+                           if e.Key == "Escape" { c.cancelRename() }
+                       }
+                       onBlur={_ in if ui.Renaming == t.ID { c.commitRename() }} />
+            } else {
+                <span class="label">{t.Shown}</span>
+            }}
+            {if t.IsZoomed { <span class="badge" title="A pane is zoomed">⤢</span> }}
+            {if t.Broadcast { <span class="badge" title="Broadcasting input to every pane">📡</span> }}
+            {if t.ReadOnly { <span class="badge" title="The pane is read-only">🔒</span> }}
+            {if t.PaneCount > 1 { <span class="badge panes" title="Panes">{t.PaneCount}</span> }}
+            <div class="close" role="button" title="Close tab" onPointerDown={e in e.StopPropagation()} onClick={e in
+                e.StopPropagation()
+                c.Close(t.ID)
+            }>
+                <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.3 0.5 L9.5 8.7 L8.7 9.5 L0.5 1.3 Z M8.7 0.5 L9.5 1.3 L1.3 9.5 L0.5 8.7 Z" fill="currentColor" /></svg>
+            </div>
+            {if !t.Progress.isEmpty {
+                <div class="progress" class:error={t.Progress == "error"} class:paused={t.Progress == "paused"}
+                     class:indeterminate={t.Progress == "indeterminate"}
+                     style:width={t.Progress == "indeterminate" ? "100%" : "\(max(3, t.ProgressValue))%"}></div>
+            }}
+        </div>
+    )
+}
+
+@MainActor
+func TabBar(c: Controller) -> component.Node {
+    let ws = c.ws
+    let ui = c.ui
+    return (
+        <header class="tabbar" class:compact={c.liveSettings.TabWidthMode == "compact"} class:fit={c.liveSettings.TabWidthMode == "titleLength"}
+                class:titlebar={ui.InTitlebar && !ui.Fullscreen}
+                onPointerDown={e in
+                    // An empty part of the bar is the title bar: it moves
+                    // the window, and a double-click zooms it.
+                    guard let n = e.Target, n.HasClass("tabbar") || n.HasClass("spacer") || n.HasClass("tabs") else { return }
+                    if e.Clicks == 2 { app.TitlebarDoubleClick() } else { app.StartWindowDrag() }
+                }
+                onPointerUp={_ in ui.Dragging = 0} onMouseLeave={_ in ui.Dragging = 0}>
+            <div class="more" role="button" title={"Profiles and settings (" + c.liveSettings.KeysFor("Terminal.OpenNewTabDropdown") + ")"} onClick={e in
+                c.openNewTabMenu(x: e.X - 14, y: 42)
+            }>
+                <svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.6 3.6 L6 8 L10.4 3.6 L11.2 4.4 L6 9.6 L0.8 4.4 Z" fill="currentColor" /></svg>
+            </div>
+            <div class="tabs">
+                <component.For each={ws.Tabs} key={t in t.ID}>
+                    {t in <TabItem c={c} t={t.Value} />}
+                </component.For>
+                {if ui.SettingsOpen { <SettingsTabItem c={c} /> }}
+            </div>
+            <div class="new" role="button" title={"New tab (" + c.liveSettings.KeysFor("Terminal.OpenNewTab") + ")"} onClick={c.NewTab()}>
+                <svg width="12" height="12" viewBox="0 0 12 12"><path d="M5.4 0.5 L6.6 0.5 L6.6 11.5 L5.4 11.5 Z M0.5 5.4 L11.5 5.4 L11.5 6.6 L0.5 6.6 Z" fill="currentColor" /></svg>
+            </div>
+            <div class="spacer"></div>
+        </header>
+    )
+}
+
+@MainActor
+func SearchBox(c: Controller) -> component.Node {
+    let ui = c.ui
+    return (
+        <div class="search" onPointerDown={e in e.StopPropagation()}>
+            <input class="query" placeholder="Find" value={ui.SearchText} autofocus
+                   onInput={e in
+                       ui.SearchText = e.Value
+                       c.searchChanged()
+                   }
+                   onKeyDown={e in
+                       e.StopPropagation()
+                       if e.Key == "Enter" {
+                           e.PreventDefault()
+                           c.stepMatch(e.Shift ? -1 : 1)
+                       } else if e.Key == "Escape" {
+                           c.closeSearch()
+                       } else if e.Meta && e.Code == "KeyG" {
+                           e.PreventDefault()
+                           c.stepMatch(e.Shift ? -1 : 1)
+                       }
+                   } />
+            <span class="status">{ui.SearchStatus}</span>
+            <button class="toggle" class:on={ui.SearchCase} title="Match case" onClick={_ in
+                ui.SearchCase = !ui.SearchCase
+                c.searchChanged()
+            }>Aa</button>
+            <button title="Previous match (⇧↩)" onClick={_ in c.stepMatch(-1)}>↓</button>
+            <button title="Next match (↩)" onClick={_ in c.stepMatch(1)}>↑</button>
+            <button title="Close (⎋)" onClick={_ in c.closeSearch()}>×</button>
+        </div>
+    )
+}
+
+@MainActor
+func Palette(c: Controller) -> component.Node {
+    let ui = c.ui
+    return (
+        <div class="scrim" onPointerDown={e in
+            e.StopPropagation()
+            c.closePalette()
+        }>
+            <div class="palette" onPointerDown={e in e.StopPropagation()}>
+                <input class="query" placeholder={ui.PaletteTitle} value={ui.PaletteText} autofocus
+                       onInput={e in
+                           ui.PaletteText = e.Value
+                           ui.PaletteIndex = 0
+                           c.filterPalette()
+                       }
+                       onKeyDown={e in
+                           e.StopPropagation()
+                           if c.PaletteKey(e.Key, control: e.Control, shift: e.Shift) { e.PreventDefault() }
+                       }
+                       onKeyUp={e in
+                           if e.Key == "Control" { c.SwitcherRelease() }
+                       } />
+                <div class="items">
+                    <component.For each={ui.PaletteShown} key={it in it.ID}>
+                        {it in
+                            <div class="item" class:selected={ui.PaletteItems.count > ui.PaletteIndex && ui.PaletteItems[ui.PaletteIndex].ID == it.ID}
+                                 onClick={_ in
+                                     if let i = ui.PaletteItems.firstIndex(where: { $0.ID == it.ID }) { c.runPalette(i) }
+                                 }>
+                                {if !it.Swatch.isEmpty { <span class="swatch" style:background={it.Swatch}></span> }}
+                                <span class="label">{it.Label}</span>
+                                {if it.Nested { <span class="detail">›</span> } else { <span class="detail">{it.Detail}</span> }}
+                            </div>
+                        }
+                    </component.For>
+                    {if ui.PaletteItems.isEmpty { <div class="empty">No matching commands</div> }}
+                </div>
+            </div>
+        </div>
+    )
+}
+
+@MainActor
+func Menu(c: Controller) -> component.Node {
+    let ui = c.ui
+    return (
+        <div class="scrim clear" onPointerDown={e in
+            e.StopPropagation()
+            c.closeMenu()
+        } onContextMenu={e in e.PreventDefault()}>
+            <div class="menu" style:left={"\(ui.MenuX)px"} style:top={"\(ui.MenuY)px"} onPointerDown={e in e.StopPropagation()}>
+                <component.For each={ui.MenuItems} key={it in it.ID}>
+                    {it in
+                        <div class:sep={it.Separator} class:mitem={!it.Separator} onClick={_ in if !it.Separator { c.runMenu(it.ID) }}>
+                            {if !it.Separator {
+                                <span class="label">{it.Label}</span>
+                            }}
+                            {if !it.Separator {
+                                <span class="detail">{it.Detail.hasPrefix("#") ? "" : it.Detail}</span>
+                            }}
+                        </div>
+                    }
+                </component.For>
+            </div>
+        </div>
+    )
+}
+
+@MainActor
+func Dialog(c: Controller) -> component.Node {
+    let ui = c.ui
+    return (
+        <div class="scrim dim" onPointerDown={e in e.StopPropagation()}>
+            <div class="dialog" tabindex="0" autofocus onKeyDown={e in
+                e.StopPropagation()
+                if e.Key == "Enter" { c.runDialog(0) }
+                if e.Key == "Escape" { c.runDialog(ui.DialogButtons.count - 1) }
+            }>
+                <h3>{ui.DialogTitle}</h3>
+                <p>{ui.DialogBody}</p>
+                <div class="buttons">
+                    <component.For each={ui.DialogButtons} key={b in b.ID}>
+                        {b in <button class:primary={b.ID == 0} onClick={_ in c.runDialog(b.ID)}>{b.Label}</button>}
+                    </component.For>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+@MainActor
+func WindowRenamer(c: Controller) -> component.Node {
+    let ui = c.ui
+    return (
+        <div class="scrim dim" onPointerDown={e in e.StopPropagation()}>
+            <div class="dialog">
+                <h3>Rename window</h3>
+                <input class="query" value={ui.RenameText} autofocus
+                       onInput={e in ui.RenameText = e.Value}
+                       onKeyDown={e in
+                           e.StopPropagation()
+                           if e.Key == "Enter" { c.commitRename() }
+                           if e.Key == "Escape" { c.cancelRename() }
+                       } />
+            </div>
+        </div>
+    )
+}
+
+/// The window: the tab bar, the terminal surface, and what goes over it.
+/// A controller can be given, to drive and read it from outside (a test).
+@MainActor
+public func TerminalWindow(controller: Controller? = nil) -> component.Node {
+    let c = controller ?? Controller()
+    let ui = c.ui
+    @state.State var surface: component.Ref = nil
+    component.OnMount {
+        c.surfaceNode = surface
+        app.OnCloseRequest { c.tryQuit() }
+        c.Launch(CommandLine.arguments)
+        c.focusSurface()
+        Task { await c.tick() }
+        Task { await c.scripted(CommandLine.arguments) }
     }
+    return (
+        <div class="window">
+            {if !ui.FocusMode && (c.liveSettings.AlwaysShowTabs || c.ws.Tabs.count > 1) { <TabBar c={c} /> }}
+            {if (ui.FocusMode || (!c.liveSettings.AlwaysShowTabs && c.ws.Tabs.count <= 1)) && ui.InTitlebar && !ui.Fullscreen {
+                <div class="dragstrip" onPointerDown={e in if e.Clicks == 2 { app.TitlebarDoubleClick() } else { app.StartWindowDrag() }}></div>
+            }}
+            <div class="stage">
+                <div class="surface" tabindex="0" ref={$surface}
+                     onKeyDown={e in c.KeyDown(e)}
+                     onKeyUp={e in c.KeyUp(e)}
+                     onBeforeInput={e in c.BeforeInput(e)}
+                     onPointerDown={e in c.PointerDown(e)}
+                     onPointerMove={e in c.PointerMove(e)}
+                     onPointerUp={e in c.PointerUp(e)}
+                     onWheel={e in c.Wheel(e)}
+                     onContextMenu={e in e.PreventDefault()}
+                     onFocus={c.Focus(true)}
+                     onBlur={c.Focus(false)}>
+                    {viewport.Viewport(class: "screen", handle: { h in c.handle = h }) { w, h, t in c.Draw(w, h, t) }}
+                </div>
+                {if ui.SettingsShown { <SettingsPage c={c} /> }}
+                {if ui.Search { <SearchBox c={c} /> }}
+                {if !ui.Hover.isEmpty { <div class="hover">{ui.Hover}</div> }}
+                {if !ui.Toast.isEmpty { <div class="toast">{ui.Toast}</div> }}
+                {if ui.Palette { <Palette c={c} /> }}
+                {if ui.Menu { <Menu c={c} /> }}
+                {if ui.Dialog { <Dialog c={c} /> }}
+                {if ui.RenamingWindow { <WindowRenamer c={c} /> }}
+            </div>
+        </div>
+    )
+}
 
-    // MARK: - Drawing
-
-    /// The viewport's frame: the tab in front, sized to the box.
-    func Draw(_ w: int, _ h: int, _ t: float64) -> [uint8] {
-        if let css = handle?.Size, css.Width > 0 { scale = float32(w) / css.Width }
-        let dark = app.IsDark()
-        let theme = dark ? view.Theme.dark : view.Theme.light
-        if theme.Name != shownTheme {
-            renderer.SetTheme(theme)
-            shownTheme = theme.Name
+extension Controller {
+    /// The first tabs: what the command line asks (wt's subcommands, or
+    /// --profile), else the settings' startupActions, else one tab of the
+    /// default profile; and the window as launchMode says.
+    func Launch(_ args: [string]) {
+        if !settings.Warnings.isEmpty { toast(settings.Warnings[0]) }
+        var words: [string] = []
+        var i = 1
+        while i < args.count {
+            let a = args[i]
+            // The test and demo flags, and ui/app's.
+            if a == "--tabs" || a == "--type" || a == "--snapshot" || a == "--snapshot-after" || a == "--quit-after" || a == "--action" {
+                i += 2
+                continue
+            }
+            if a == "--dark" || a == "--light" || a == "--" {
+                i += 1
+                continue
+            }
+            words.append(a.contains(" ") ? "\"\(a)\"" : a)
+            i += 1
         }
-        let grid = renderer.GridSize(width: w, height: h, scale: scale)
-        gridColumns = grid.Columns
-        gridRows = grid.Rows
-        guard let shell = current else {
-            return [uint8](repeating: 0, count: w * h * 4)
+        if !words.isEmpty {
+            runCommandline(words.joined(separator: " "))
+        } else if restoreSession() {
+            // The last session's tabs.
+        } else if !settings.StartupActions.isEmpty {
+            runCommandline(settings.StartupActions)
         }
-        let term = shell.term
-        term.ForegroundRGB = (R: theme.Foreground.R, G: theme.Foreground.G, B: theme.Foreground.B)
-        term.BackgroundRGB = (R: theme.Background.R, G: theme.Background.G, B: theme.Background.B)
-        shell.Resize(columns: grid.Columns, rows: grid.Rows, width: w, height: h)
-        if let text = term.TakeClipboard() { window.SetClipboardText(text) }
-        let visible = !term.CursorBlink || !focused || blinkOn
-        return renderer.Draw(term, width: w, height: h, scale: scale,
-                             cursor: view.CursorState(visible: visible, focused: focused), selection: shell.selection)
+        if ws.Tabs.isEmpty { NewTab(profile: nil, dir: nil) }
+        switch settings.LaunchMode {
+        case "fullscreen": app.SetFullscreen(true)
+        case "focus", "maximizedFocus": ui.FocusMode = true
+        default: break
+        }
+        if settings.AlwaysOnTop {
+            alwaysOnTop = true
+            app.SetAlwaysOnTop(true)
+        }
+        applyOpacity()
     }
 
     /// What the command line asks for after the first shell starts, for
@@ -425,26 +378,33 @@ public final class Controller {
                 let n = int(args[i + 1]) ?? 1
                 for _ in 1..<max(1, n) { NewTab(dir: nil) }
                 i += 1
+            } else if args[i] == "--action" && i + 1 < args.count {
+                // Runs an action by id, as its key would.
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                RunAction(args[i + 1])
+                app.RequestFrame()
+                i += 1
+            } else if args[i] == "--quit-after" && i + 1 < args.count {
+                // Quits as ⌘Q does (the session saved), for tests.
+                let secs = float64(args[i + 1]) ?? 1
+                try? await Task.sleep(nanoseconds: uint64(secs * 1_000_000_000))
+                quitConfirmed = false
+                if tryQuit() {
+                    app.Quit()
+                    app.RequestFrame()
+                } else if ui.Dialog {
+                    runDialog(0)
+                }
+                i += 1
             } else if args[i] == "--type" && i + 1 < args.count {
                 try? await Task.sleep(nanoseconds: 700_000_000)
-                if let shell = current {
+                if let pane = currentPane {
                     let text = unescapeNewlines(args[i + 1])
-                    typed(shell, shell.term.EncodeText(text))
+                    typed(pane, pane.shell.term.EncodeText(text))
                 }
                 i += 1
             }
             i += 1
-        }
-    }
-
-    /// Blinks the cursor while the terminal has focus.
-    func blink() async {
-        while true {
-            try? await Task.sleep(nanoseconds: 530_000_000)
-            if focused, let t = current?.term, t.CursorBlink, t.CursorVisible {
-                blinkOn = !blinkOn
-                redraw()
-            }
         }
     }
 }
@@ -464,79 +424,4 @@ func unescapeNewlines(_ s: string) -> string {
         }
     }
     return string(decoding: out, as: UTF8.self)
-}
-
-/// The word around a cell: the run of characters that aren't spaces or
-/// punctuation that ends words in a shell.
-func wordAt(_ term: vt.Terminal, _ col: int, _ line: int) -> (int, int) {
-    let cells = term.Absolute(line).Cells
-    func isWord(_ i: int) -> bool {
-        let r = cells[i].Rune
-        if r == 0 || r == 32 { return false }
-        // Quotes, brackets and separators end a word; paths and URLs stay
-        // whole.
-        let stops: [uint32] = [0x22, 0x27, 0x60, 0x28, 0x29, 0x5B, 0x5D, 0x7B, 0x7D, 0x3C, 0x3E, 0x7C, 0x3B, 0x2C]
-        return !stops.contains(r)
-    }
-    if col >= cells.count || !isWord(col) { return (col, col) }
-    var a = col
-    var b = col
-    while a > 0 && isWord(a - 1) { a -= 1 }
-    while b + 1 < cells.count && isWord(b + 1) { b += 1 }
-    return (a, b)
-}
-
-@MainActor
-func TabBar(c: Controller) -> component.Node {
-    let ws = c.ws
-    return (
-        <header class="tabbar">
-            <div class="tabs">
-                <component.For each={ws.Tabs} key={t in t.ID}>
-                    {t in
-                        <div class="tab" class:active={ws.Active == t.ID} class:bell={t.Bell} title={t.Title} onClick={c.Select(t.ID)}>
-                            <span class="dot"></span>
-                            <span class="label">{t.Title}</span>
-                            <button class="close" title="Close tab (⌘W)" onClick={e in
-                                e.StopPropagation()
-                                c.Close(t.ID)
-                            }>×</button>
-                        </div>
-                    }
-                </component.For>
-            </div>
-            <button class="new" title="New tab (⌘T)" onClick={c.NewTab()}>+</button>
-        </header>
-    )
-}
-
-/// The window: the tab bar and the terminal surface. A controller can be
-/// given, to drive and read it from outside (a test).
-@MainActor
-public func TerminalWindow(controller: Controller? = nil) -> component.Node {
-    let c = controller ?? Controller()
-    @state.State var surface: component.Ref = nil
-    component.OnMount {
-        c.surfaceNode = surface
-        c.NewTab(dir: nil)
-        c.focusSurface()
-        Task { await c.blink() }
-        Task { await c.scripted(CommandLine.arguments) }
-    }
-    return (
-        <div class="window">
-            <TabBar c={c} />
-            <div class="surface" tabindex="0" ref={$surface}
-                 onKeyDown={e in c.KeyDown(e)}
-                 onBeforeInput={e in c.BeforeInput(e)}
-                 onPointerDown={e in c.PointerDown(e)}
-                 onPointerMove={e in c.PointerMove(e)}
-                 onPointerUp={e in c.PointerUp(e)}
-                 onWheel={e in c.Wheel(e)}
-                 onFocus={c.Focus(true)}
-                 onBlur={c.Focus(false)}>
-                {viewport.Viewport(class: "screen", handle: { h in c.handle = h }) { w, h, t in c.Draw(w, h, t) }}
-            </div>
-        </div>
-    )
 }

@@ -1,15 +1,16 @@
-// terminal: a general-purpose terminal with tabs. Each tab runs the
-// user's shell under a pseudo-terminal (os/pty); vt keeps its screen and
-// view draws it, under a tab bar of .vsx markup (package workspace).
+// terminal: a general-purpose terminal with Windows Terminal's features:
+// tabs and split panes, each running a profile's program under a
+// pseudo-terminal (os/pty); vt keeps its screen and view draws it, under
+// a tab bar of .vsx markup with a command palette, find and menus
+// (package workspace). Settings are Windows Terminal's settings.json.
 //
 //     vsc run terminal
 //     vsc run terminal -- --light
+//     vsc run terminal -- new-tab -p bash -d ~/src \; split-pane -V    # wt's command line
 //     vsc run terminal -- --tabs 3 --type "ls\n"      # open tabs, type into the last
 //
-// Keys: ⌘T new tab (in the current tab's directory), ⌘W close it, ⌘1-9
-// and ⌘⇧[ ⌘⇧] or ⌃Tab to switch, ⌘C copy, ⌘V paste, ⌘A select all, ⌘K
-// clear, ⌘+ ⌘- ⌘0 the font size, ⇧PageUp ⇧PageDown scroll. Option is
-// sent as Meta (ESC prefix) where TERMINAL_OPTION_AS_META=1.
+// Keys are in the README; ⌘⇧P lists every action. Option is sent as Meta
+// (ESC prefix) where TERMINAL_OPTION_AS_META=1.
 package main
 
 import (
@@ -19,5 +20,8 @@ import (
 
 @MainActor
 func main() async -> int32 {
-    return await app.Run(title: "Terminal", width: 900, height: 560) { <workspace.TerminalWindow /> }
+    let size = workspace.InitialWindowSize()
+    return await app.Run(title: "Terminal", width: size.Width, height: size.Height, unifiedTitlebar: workspace.TabsInTitlebar()) {
+        <workspace.TerminalWindow />
+    }
 }

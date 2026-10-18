@@ -1,0 +1,227 @@
+package workspace
+
+import (
+    "icons/lucide"
+    "ui/component"
+    "ui/icon"
+    "ui/state"
+    "web/dom"
+)
+
+// The settings tab's page: a sidebar of pages (back to the terminal, a
+// search box, the settings, the profiles, the JSON file) beside the page,
+// a title over cards of rows, each a setting and its control.
+
+/// A sidebar page's icon.
+@MainActor
+func NavIcon(name: string) -> component.Node {
+    switch name {
+    case "rocket": return icon.Icon(of: lucide.Rocket, size: 18)
+    case "pointer": return icon.Icon(of: lucide.MousePointerClick, size: 18)
+    case "sun": return icon.Icon(of: lucide.SunMoon, size: 18)
+    case "palette": return icon.Icon(of: lucide.Palette, size: 18)
+    case "keyboard": return icon.Icon(of: lucide.Keyboard, size: 18)
+    case "layers": return icon.Icon(of: lucide.Layers, size: 18)
+    case "json": return icon.Icon(of: lucide.FileJson, size: 18)
+    default: return icon.Icon(of: lucide.SquareTerminal, size: 18)
+    }
+}
+
+/// The settings tab in the tab bar.
+@MainActor
+func SettingsTabItem(c: Controller) -> component.Node {
+    let ui = c.ui
+    return (
+        <div class="tab settings-tab" class:active={ui.SettingsShown} title="Settings"
+             onPointerDown={e in
+                 if e.Button == 1 { c.CloseSettingsTab() }
+             }
+             onClick={_ in c.OpenSettingsTab()}>
+            {if ui.SettingsShown {
+                <div class="foot left sfoot">
+                    <svg width="10" height="10" viewBox="0 0 10 10"><path d="M10 0 L10 10 L0 10 C5.5 10 10 5.5 10 0 Z" fill="currentColor" /></svg>
+                </div>
+            }}
+            {if ui.SettingsShown {
+                <div class="foot right sfoot">
+                    <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 0 L0 10 L10 10 C4.5 10 0 5.5 0 0 Z" fill="currentColor" /></svg>
+                </div>
+            }}
+            <span class="favicon">{icon.Icon(of: lucide.Settings, size: 15)}</span>
+            <span class="label">Settings</span>
+            <div class="close" role="button" title="Close settings" onPointerDown={e in e.StopPropagation()} onClick={e in
+                e.StopPropagation()
+                c.CloseSettingsTab()
+            }>
+                <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.3 0.5 L9.5 8.7 L8.7 9.5 L0.5 1.3 Z M8.7 0.5 L9.5 1.3 L1.3 9.5 L0.5 8.7 Z" fill="currentColor" /></svg>
+            </div>
+        </div>
+    )
+}
+
+@MainActor
+func NavItem(c: Controller, p: SettingsPageInfo) -> component.Node {
+    let ui = c.ui
+    return (
+        <div class="snavitem" class:active={ui.SettingsPage == p.ID && ui.SettingsQuery.isEmpty}
+             onClick={_ in
+                 ui.SettingsQuery = ""
+                 ui.SettingsPage = p.ID
+             }>
+            {NavIcon(name: p.Icon)}
+            <span class="snavlabel">{p.Title}</span>
+        </div>
+    )
+}
+
+/// A text field: what is typed is written on Enter, or when it loses the
+/// keyboard.
+@MainActor
+func SettingField(c: Controller, r: SettingRow) -> component.Node {
+    @state.State var draft: string = r.Value
+    return (
+        <input class="sfield" value={r.Value} spellcheck="false"
+               onInput={e in draft = e.Value}
+               onKeyDown={e in
+                   e.StopPropagation()
+                   if e.Key == "Enter" && draft != r.Value { r.Set(draft) }
+                   if e.Key == "Escape" { c.ui.SettingsRev += 1 }
+               }
+               onBlur={_ in if draft != r.Value { r.Set(draft) }} />
+    )
+}
+
+@MainActor
+func SettingNumber(c: Controller, r: SettingRow) -> component.Node {
+    @state.State var draft: string = r.Value
+    return (
+        <div class="stepper" onClick={e in e.StopPropagation()}>
+            <div class="sstep" role="button" title="Less" onClick={_ in c.stepNumber(r, -1)}>−</div>
+            <input class="snum" value={r.Value}
+                   onInput={e in draft = e.Value}
+                   onKeyDown={e in
+                       e.StopPropagation()
+                       if e.Key == "Enter" { c.typedNumber(r, draft) }
+                       if e.Key == "ArrowUp" { c.stepNumber(r, 1) }
+                       if e.Key == "ArrowDown" { c.stepNumber(r, -1) }
+                   }
+                   onBlur={_ in if draft != r.Value { c.typedNumber(r, draft) }} />
+            <div class="sstep" role="button" title="More" onClick={_ in c.stepNumber(r, 1)}>+</div>
+        </div>
+    )
+}
+
+/// One setting: its title and what it does, and its control.
+@MainActor
+func SettingLine(c: Controller, r: SettingRow) -> component.Node {
+    let clickable = r.Kind == "toggle" || r.Kind == "choice" || r.Kind == "scheme"
+    return (
+        <div class="srow" class:clickable={clickable} class:first={r.First}
+             onClick={e in
+                 switch r.Kind {
+                 case "toggle": r.Set(r.On ? "false" : "true")
+                 case "choice": c.openChoice(r, x: e.X - 160, y: e.Y + 12)
+                 case "scheme": r.Set("")
+                 default: break
+                 }
+             }>
+            <div class="stext">
+                <div class="stitle">{r.Title}</div>
+                {if !r.Detail.isEmpty { <div class="sdetail">{r.Detail}</div> }}
+                {if r.Kind == "scheme" {
+                    <div class="swatches">
+                        <component.For each={r.Colors}>{col in <span class="sw" style:background={col.Value}></span>}</component.For>
+                    </div>
+                }}
+            </div>
+            {if r.Kind == "toggle" {
+                <div class="switch" class:on={r.On} role="switch"><div class="knob"></div></div>
+            }}
+            {if r.Kind == "choice" {
+                <div class="schoice">
+                    <span class="svalue">{r.Value}</span>
+                    {icon.Icon(of: lucide.ChevronsUpDown, size: 15)}
+                </div>
+            }}
+            {if r.Kind == "text" { <SettingField c={c} r={r} /> }}
+            {if r.Kind == "number" { <SettingNumber c={c} r={r} /> }}
+            {if r.Kind == "keys" && !r.Value.isEmpty { <span class="skeys">{r.Value}</span> }}
+            {if r.Kind == "scheme" && r.On { <span class="scheck">{icon.Icon(of: lucide.Check, size: 17)}</span> }}
+            {if r.Kind == "scheme" && !r.On { <span class="schev">{icon.Icon(of: lucide.ChevronRight, size: 17)}</span> }}
+        </div>
+    )
+}
+
+@MainActor
+func SettingCard(c: Controller, g: SettingGroup) -> component.Node {
+    return (
+        <section class="sgroup">
+            <h2>{g.Title}</h2>
+            <div class="scard">
+                <component.For each={g.Rows} key={r in r.ID}>
+                    {r in <SettingLine c={c} r={r.Value} />}
+                </component.For>
+            </div>
+        </section>
+    )
+}
+
+/// The page itself: its title and its cards, drawn again when the page,
+/// the search, or the settings change.
+@MainActor
+func SettingsBody(c: Controller, page: string, query: string, rev: int) -> component.Node {
+    let groups = c.SettingsGroups(page: page, query: query)
+    return (
+        <div class="scontent">
+            <h1>{query.isEmpty ? c.SettingsTitle(page) : "Search results"}</h1>
+            {if page.hasPrefix("profile:") && query.isEmpty {
+                <div class="ssub">{page == "profile:" ? "Every profile starts from these; a profile's own settings win." : "A profile: what a tab runs, and how it looks."}</div>
+            }}
+            <component.For each={groups} key={g in g.ID}>
+                {g in <SettingCard c={c} g={g.Value} />}
+            </component.For>
+            {if groups.isEmpty { <div class="sempty">No settings match “{query}”</div> }}
+        </div>
+    )
+}
+
+/// The settings tab's page, over the terminal.
+@MainActor
+func SettingsPage(c: Controller) -> component.Node {
+    let ui = c.ui
+    return (
+        <div class="settings" tabindex="0" autofocus onKeyDown={e in c.SettingsKey(e)}>
+            <aside class="snav">
+                <div class="sback" role="button" onClick={_ in c.ShowTerminal()}>
+                    {icon.Icon(of: lucide.ArrowLeft, size: 18)}
+                    <span>Back to terminal</span>
+                </div>
+                <div class="ssearch">
+                    {icon.Icon(of: lucide.Search, size: 16)}
+                    <input class="squery" placeholder="Search" value={ui.SettingsQuery} spellcheck="false"
+                           onInput={e in ui.SettingsQuery = e.Value}
+                           onKeyDown={e in
+                               e.StopPropagation()
+                               if e.Key == "Escape" { ui.SettingsQuery = "" }
+                           } />
+                </div>
+                <div class="sheading">Settings</div>
+                <component.For each={c.SettingsPages}>
+                    {p in <NavItem c={c} p={p.Value} />}
+                </component.For>
+                <div class="sheading">Profiles</div>
+                <component.For each={c.LiveProfilePages()}>
+                    {p in <NavItem c={c} p={p.Value} />}
+                </component.For>
+                <div class="snavitem" onClick={_ in c.RunCommand("openSettings")} title={c.settingsFile}>
+                    {NavIcon(name: "json")}
+                    <span class="snavlabel">Open JSON file</span>
+                    <span class="sout">{icon.Icon(of: lucide.ArrowUpRight, size: 15)}</span>
+                </div>
+            </aside>
+            <main class="smain">
+                {SettingsBody(c: c, page: ui.SettingsPage, query: ui.SettingsQuery, rev: ui.SettingsRev)}
+            </main>
+        </div>
+    )
+}

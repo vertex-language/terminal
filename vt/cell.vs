@@ -51,22 +51,37 @@ public enum Attr {
     public static let wide: uint16 = 2048
     /// The right half of a wide character: nothing of its own to draw.
     public static let spacer: uint16 = 4096
+    /// Underlined with dots (SGR 4:4) or dashes (4:5).
+    public static let dottedUnderline: uint16 = 8192
+    public static let dashedUnderline: uint16 = 16384
+    /// DECSCA: selective erase (DECSED, DECSEL, DECSERA) leaves the cell.
+    public static let protected: uint16 = 32768
+
+    /// Any of the underline styles.
+    public static let anyUnderline: uint16 = underline | doubleUnderline | curlyUnderline | dottedUnderline | dashedUnderline
 }
 
 /// One character cell: what it shows and how.
 public struct Cell: Equatable {
     /// The code point shown, or 0 for a cell nothing was written to (drawn
-    /// as a space).
+    /// as a space). From `ClusterBase` up, a grapheme cluster: a character
+    /// with the marks and joiners that followed it (`Cluster`).
     public var Rune: uint32
     public var Fg: Color
     public var Bg: Color
     public var Attrs: uint16
+    /// The underline's color (SGR 58), or the default: the text's.
+    public var Ul: Color
+    /// The hyperlink the cell is part of (OSC 8), or 0: `LinkURI`.
+    public var Link: uint32
 
-    public init(rune: uint32 = 0, fg: Color = .default, bg: Color = .default, attrs: uint16 = 0) {
+    public init(rune: uint32 = 0, fg: Color = .default, bg: Color = .default, attrs: uint16 = 0, ul: Color = .default, link: uint32 = 0) {
         Rune = rune
         Fg = fg
         Bg = bg
         Attrs = attrs
+        Ul = ul
+        Link = link
     }
 
     public static let blank = Cell()
@@ -76,15 +91,42 @@ public struct Cell: Equatable {
     }
 }
 
+/// What a shell said a line is (OSC 133, FinalTerm's shell integration):
+/// where a prompt, the command typed after it, and its output begin.
+public enum Mark: Equatable {
+    case none
+    case prompt
+    case command
+    case output
+}
+
+/// How a line is drawn (DECSWL, DECDWL, DECDHL): its characters at their
+/// size, twice as wide, or the top or bottom half of twice as tall.
+public enum Rendition: Equatable {
+    case single
+    case doubleWidth
+    case doubleTop
+    case doubleBottom
+}
+
 /// A row of cells. `Wrapped` is set where the text ran on past the
 /// right margin onto the next row, so copying joins them again.
 public struct Line {
     public var Cells: [Cell]
     public var Wrapped: bool
+    /// Where the shell's prompt, command or output starts on this line.
+    public var Mark: Mark
+    /// The exit status the command that ended here reported (OSC 133;D),
+    /// or -1.
+    public var ExitCode: int
+    public var Rendition: Rendition
 
     public init(columns: int, fill: Cell = .blank) {
         Cells = [Cell](repeating: fill, count: columns)
         Wrapped = false
+        Mark = .none
+        ExitCode = -1
+        Rendition = .single
     }
 
     /// The row's text, trailing blanks dropped.
@@ -95,10 +137,76 @@ public struct Line {
         var i = 0
         while i < end {
             let c = Cells[i]
-            if !c.Has(Attr.spacer) { appendUTF8(&out, c.Rune == 0 ? 32 : c.Rune) }
+            if !c.Has(Attr.spacer) { appendRune(&out, c.Rune == 0 ? 32 : c.Rune) }
             i += 1
         }
         return textOf(out)
+    }
+}
+
+// MARK: - Grapheme clusters and hyperlinks
+
+/// Where cluster numbers begin: past the last code point.
+public let ClusterBase: uint32 = 0x110000
+
+// Clusters and links, shared by every terminal and kept for the life of
+// the program: a cell names one by number, so cells stay small and a
+// screen of them compares quickly. The same text is the same number.
+var clusters: [[uint32]] = []
+var clusterIDs: [string: uint32] = [:]
+var links: [string] = [""]
+var linkIDs: [string: uint32] = [:]
+
+/// The code points of a cell's rune: a cluster's, or the one.
+public func Cluster(_ rune: uint32) -> [uint32] {
+    if rune >= ClusterBase {
+        let i = int(rune - ClusterBase)
+        if i < clusters.count { return clusters[i] }
+        return [0xFFFD]
+    }
+    return [rune]
+}
+
+/// A cell's rune as text.
+public func RuneText(_ rune: uint32) -> string {
+    var out: [uint8] = []
+    appendRune(&out, rune)
+    return textOf(out)
+}
+
+func internCluster(_ cps: [uint32]) -> uint32 {
+    if cps.count == 1 { return cps[0] }
+    var key: [uint8] = []
+    for cp in cps { appendUTF8(&key, cp) }
+    let k = textOf(key)
+    if let id = clusterIDs[k] { return id }
+    let id = ClusterBase + uint32(clusters.count)
+    clusters.append(cps)
+    clusterIDs[k] = id
+    return id
+}
+
+/// The URI of a hyperlink (OSC 8) by its number; "" for 0.
+public func LinkURI(_ id: uint32) -> string {
+    let i = int(id)
+    return i < links.count ? links[i] : ""
+}
+
+func internLink(_ uri: string) -> uint32 {
+    if uri.isEmpty { return 0 }
+    if let id = linkIDs[uri] { return id }
+    let id = uint32(links.count)
+    links.append(uri)
+    linkIDs[uri] = id
+    return id
+}
+
+// appendRune appends a rune's UTF-8: a cluster's code points, or the one.
+func appendRune(_ out: inout [uint8], _ rune: uint32) {
+    if rune >= ClusterBase {
+        for cp in Cluster(rune) { appendUTF8(&out, cp) }
+    } else {
+        appendUTF8(&out, rune)
     }
 }
 

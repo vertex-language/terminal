@@ -55,8 +55,14 @@ func count(_ text: string, _ needle: string) -> int {
 }
 
 @MainActor
-func key(_ s: componenttest.Screen, _ key: string, _ code: string, control: bool = false, meta: bool = false, shift: bool = false) {
-    _ = s.Page.Handle(.keyDown(web.Key(Key: key, Code: code, Shift: shift, Control: control, Meta: meta)))
+func key(_ s: componenttest.Screen, _ key: string, _ code: string, control: bool = false, meta: bool = false, shift: bool = false, alt: bool = false) {
+    _ = s.Page.Handle(.keyDown(web.Key(Key: key, Code: code, Shift: shift, Control: control, Alt: alt, Meta: meta)))
+}
+
+/// Whether every pane's screen shows something.
+@MainActor
+func prompted(_ c: workspace.Controller) -> bool {
+    return c.PaneTexts().allSatisfy { !$0.allSatisfy { $0 == "\n" || $0 == " " } }
 }
 
 @MainActor
@@ -66,7 +72,21 @@ func type(_ s: componenttest.Screen, _ text: string) {
 
 @MainActor
 func main() async -> int32 {
-    let c = workspace.Controller()
+    let settings = """
+    {
+        // Comments and trailing commas, as Windows Terminal allows.
+        "profiles": { "defaults": { "closeOnExit": "graceful", }, },
+        "schemes": [ { "name": "Test Scheme", "background": "#102030", "foreground": "#FFFFFF" } ],
+        "actions": [
+            { "command": { "action": "sendInput", "input": "echo sent-$((5*5))\\r" }, "keys": "cmd+shift+u" },
+            { "command": { "action": "setColorScheme", "colorScheme": "Test Scheme" }, "id": "User.Scheme" },
+            { "command": { "action": "renameTab", "title": "My Tab" }, "id": "User.Rename" },
+            { "command": { "action": "setTabColor", "color": "#C50E1F" }, "id": "User.Color" },
+        ],
+        "keybindings": [ { "keys": "cmd+shift+y", "id": "Terminal.TogglePaneZoom" } ]
+    }
+    """
+    let c = workspace.Controller(settingsJSON: settings)
     let s = componenttest.Mount(width: 800, height: 500, css: "html, body { height: 100%; }") {
         <workspace.TerminalWindow controller={c} />
     }
@@ -171,6 +191,144 @@ func main() async -> int32 {
     check(c.TabCount == 3, "⌘T opens a tab")
     key(s, "w", "KeyW", meta: true)
     check(c.TabCount == 2, "⌘W closes it")
+
+    // Dialogs: quitting with two tabs asks; its buttons take clicks.
+    c.RunAction("Terminal.Quit")
+    _ = s.Pixels()
+    check(c.DialogOpen, "quitting with two tabs asks first")
+    check(s.Query(".dialog button").Count == 2, "with two buttons")
+    check(s.Click(s.Query(".dialog button").Nth(1)), "click Cancel")
+    check(!c.DialogOpen && c.TabCount == 2, "Cancel keeps the window")
+    c.RunAction("Terminal.OpenAboutDialog")
+    _ = s.Pixels()
+    check(s.Click(s.Query(".dialog button")) && !c.DialogOpen, "the About dialog's OK closes it")
+
+    // The ⌄ menu opens inside the window, and its items take clicks.
+    check(s.Click(s.Query(".more")), "click ⌄")
+    check(c.MenuLabels.contains("Command palette"), "the profiles menu opens (\(c.MenuLabels))")
+    check(c.MenuX + 240 <= c.WindowWidth, "inside the window (x \(c.MenuX) of \(c.WindowWidth))")
+    check(s.Click(s.ByText("About")) && c.DialogOpen, "a menu item takes a click")
+    _ = s.Click(s.Query(".dialog button"))
+
+    // Dragging a tab onto another moves it there.
+    let firstTitle = c.TabTitles[0]
+    s.Drag(s.Query(".tabs"), from: 0.1, to: 0.8, steps: 12, y: 0.5)
+    check(c.TabTitles.count == 2 && c.TabTitles[1] == firstTitle, "dragging a tab reorders the tabs (\(c.TabTitles))")
+    s.Drag(s.Query(".tabs"), from: 0.8, to: 0.1, steps: 12, y: 0.5)
+
+    // Panes: ⌘D splits right; the new pane has focus and its own shell.
+    key(s, "d", "KeyD", meta: true)
+    _ = s.Pixels()
+    check(c.PaneCount == 2 && c.FocusedPaneIndex == 1, "⌘D splits the pane (\(c.PaneCount) panes)")
+    check(await until(5) { _ = s.Pixels(); return prompted(c) }, "both panes have a shell")
+    type(s, "echo right-$((2*8))")
+    key(s, "Enter", "Enter")
+    check(await until(5) { c.PaneTexts()[1].contains("right-16") }, "typing goes to the focused pane")
+    check(!c.PaneTexts()[0].contains("right-16"), "and not the other")
+    key(s, "ArrowLeft", "ArrowLeft", meta: true, alt: true)
+    check(c.FocusedPaneIndex == 0, "⌘⌥← moves focus left")
+    c.RunAction("Terminal.ToggleBroadcastInput")
+    check(c.Broadcasting, "broadcast input on")
+    type(s, "echo both-$((3*3))")
+    key(s, "Enter", "Enter")
+    check(await until(5) { c.PaneTexts().allSatisfy { $0.contains("both-9") } }, "broadcast types into every pane")
+    c.RunAction("Terminal.ToggleBroadcastInput")
+    key(s, "y", "KeyY", meta: true, shift: true)
+    check(c.Zoomed, "a user binding (⌘⇧Y) zooms the pane")
+    key(s, "y", "KeyY", meta: true, shift: true)
+    check(!c.Zoomed, "and back")
+    key(s, "w", "KeyW", meta: true)
+    check(c.PaneCount == 1, "⌘W closes the pane, not the tab (\(c.PaneCount))")
+
+    // A user's action: sendInput on ⌘⇧U.
+    key(s, "u", "KeyU", meta: true, shift: true)
+    check(await until(5) { c.ScreenText().contains("sent-25") }, "a sendInput action types for you")
+
+    // The command palette: filter, then run.
+    key(s, "p", "KeyP", meta: true, shift: true)
+    check(c.PaletteOpen, "⌘⇧P opens the command palette")
+    type(s, "split pane right")
+    check(c.PaletteLabels.first?.contains("Split pane") ?? false, "the palette filters (\(c.PaletteLabels.prefix(2)))")
+    key(s, "Enter", "Enter")
+    check(!c.PaletteOpen && c.PaneCount == 2, "Enter runs it: the pane splits")
+    key(s, "w", "KeyW", meta: true)
+    check(c.PaneCount == 1, "closed again")
+
+    // Find.
+    key(s, "f", "KeyF", meta: true)
+    check(c.SearchOpen, "⌘F opens find")
+    type(s, "sent-25")
+    check(c.SearchMatches.Count >= 1, "it finds the text (\(c.SearchMatches.Count) matches)")
+    key(s, "Escape", "Escape")
+    check(!c.SearchOpen, "Escape closes it")
+
+    // Actions from the settings: a scheme, a title, a color.
+    c.RunAction("User.Scheme")
+    check(c.ThemeName.hasPrefix("Test Scheme"), "setColorScheme uses the settings' scheme (\(c.ThemeName))")
+    c.RunAction("User.Rename")
+    check(c.TabTitles[c.ActiveIndex] == "My Tab", "renameTab")
+    c.RunAction("User.Color")
+    check(c.TabColors[c.ActiveIndex] == "#C50E1F", "setTabColor")
+    check(s.Query(".tab.active .stripe").Count == 1, "and the tab shows it")
+
+    // Read-only: typing doesn't reach the shell.
+    c.RunAction("Terminal.ToggleReadOnlyMode")
+    type(s, "echo nope-$((1+6))")
+    key(s, "Enter", "Enter")
+    _ = await until(1) { false }
+    check(c.ReadOnly && !c.ScreenText().contains("nope-7"), "a read-only pane takes no input")
+    c.RunAction("Terminal.ToggleReadOnlyMode")
+
+    // The font size.
+    let size = c.FontSize
+    key(s, "=", "Equal", meta: true)
+    check(c.FontSize == size + 1, "⌘= makes the font bigger")
+    key(s, "0", "Digit0", meta: true)
+    check(c.FontSize == size, "⌘0 resets it")
+
+    // Mark mode.
+    key(s, "m", "KeyM", meta: true, shift: true)
+    check(c.InMarkMode, "⌘⇧M enters mark mode")
+    key(s, "Escape", "Escape")
+    check(!c.InMarkMode, "Escape leaves it")
+
+    // Restoring a closed tab.
+    key(s, "t", "KeyT", meta: true)
+    let before = c.TabCount
+    key(s, "w", "KeyW", meta: true)
+    key(s, "t", "KeyT", meta: true, shift: true)
+    check(c.TabCount == before, "⌘⇧T restores the closed tab")
+    key(s, "w", "KeyW", meta: true)
+
+    // The settings tab: ⌘, opens it beside the terminals.
+    key(s, ",", "Comma", meta: true)
+    check(c.SettingsTabShown && s.Query(".settings").Exists, "⌘, opens the settings tab")
+    check(s.Query(".tab.settings-tab.active").Exists && s.Query(".tab.active").Count == 1, "it is the tab in front, and the only one")
+    check(s.Query(".scontent h1").Text == "Startup", "on its first page")
+    check(s.Click(s.ByText("Interaction")), "click a page in the sidebar")
+    check(s.Query(".scontent h1").Text == "Interaction", "the page changes")
+    let offBefore = s.Query(".switch.on").Count
+    check(s.Click(s.ByText("Copy on select")), "click a switch's row")
+    check(c.WrittenSettings.contains("\"copyOnSelect\": true"), "the change is written to settings.json")
+    check(s.Query(".switch.on").Count == offBefore + 1, "and the switch shows it")
+    s.Type(into: s.Query(".squery"), "tab width")
+    check(s.Click(s.ByText("Tab width")), "click a choice")
+    check(s.Query(".menu").Exists, "its options open as a menu")
+    check(s.Click(s.ByText("Compact")), "pick one")
+    check(s.Query(".tabbar.compact").Exists, "the tab bar takes it at once")
+    s.Replace(in: s.Query(".squery"), "paste")
+    check(s.Query(".scontent h1").Text == "Search results" && s.ByText("Large paste").Exists, "the search box finds settings on every page")
+    s.Replace(in: s.Query(".squery"), "")
+    check(s.Click(s.ByText("Defaults")) && s.Query(".scontent h1").Text == "Defaults", "the profiles' defaults")
+    s.Replace(in: s.Query(".squery"), "history")
+    check(s.Click(s.Query(".sstep").Nth(1)), "a number's +")
+    check(c.WrittenSettings.contains("\"historySize\": 11000"), "writes the number under profiles.defaults")
+    s.Replace(in: s.Query(".squery"), "")
+    check(s.Click(s.ByText("Back to terminal")), "back to the terminal")
+    check(!c.SettingsTabShown && c.SettingsTabOpen && !s.Query(".settings").Exists, "the terminal is in front; the settings tab stays")
+    check(s.Page.FocusedElement === s.Query(".surface").First, "and the terminal has the keyboard")
+    check(s.Click(s.Query(".settings-tab .close")), "close the settings tab")
+    check(!c.SettingsTabOpen && !s.Query(".settings-tab").Exists, "it goes")
 
     // A shell that exits closes its tab.
     type(s, "exit")
