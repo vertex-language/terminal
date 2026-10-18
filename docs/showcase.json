@@ -1,0 +1,5 @@
+{
+    "initialCols": 168,
+    "initialRows": 32,
+    "profiles": { "defaults": { "colorScheme": "One Half Dark", "font": { "size": 13 }, "cursorShape": "bar", "padding": 10 } }
+}
