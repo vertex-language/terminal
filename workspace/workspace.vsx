@@ -21,16 +21,18 @@ import (
 )
 
 @MainActor
-func TabItem(c: Controller, t: Tab) -> component.Node {
+func TabItem(c: Controller, t: Tab) -> Element {
     let ui = c.ui
     @state.State var node: component.Ref = nil
     component.OnMount { c.tabNodes[t.ID] = node }
     return (
-        <div class="tab" ref={$node} class:active={c.IsFront(t.ID)}
-             style:background={c.IsFront(t.ID) ? ui.SurfaceColor : ""}
-             style:color={c.IsFront(t.ID) ? ui.SurfaceText : ""} class:bell={t.Bell} class:colored={!t.Color.isEmpty}
-             class:dragging={ui.Dragging == t.ID}
-             style:left={ui.Dragging == t.ID ? "\(ui.DragShift)px" : ""}
+        <div ref={$node}
+             className={"tab" + (c.IsFront(t.ID) ? " active" : "") + (t.Bell ? " bell" : "") + (!t.Color.isEmpty ? " colored" : "") + (ui.Dragging == t.ID ? " dragging" : "")}
+             style={Style(
+                 background: c.IsFront(t.ID) ? ui.SurfaceColor : "",
+                 color: c.IsFront(t.ID) ? ui.SurfaceText : "",
+                 left: ui.Dragging == t.ID ? "\(ui.DragShift)px" : ""
+             )}
              title={t.Shown}
              onPointerDown={e in
                 if e.Button == 1 {
@@ -47,26 +49,26 @@ func TabItem(c: Controller, t: Tab) -> component.Node {
                 c.openTabMenu(t.ID, x: e.X, y: e.Y)
              }>
             {if c.IsFront(t.ID) {
-                <div class="foot left" style:color={ui.SurfaceColor}>
+                <div className="foot left" style={Style(color: ui.SurfaceColor)}>
                     <svg width="10" height="10" viewBox="0 0 10 10"><path d="M10 0 L10 10 L0 10 C5.5 10 10 5.5 10 0 Z" fill="currentColor" /></svg>
                 </div>
             }}
             {if c.IsFront(t.ID) {
-                <div class="foot right" style:color={ui.SurfaceColor}>
+                <div className="foot right" style={Style(color: ui.SurfaceColor)}>
                     <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 0 L0 10 L10 10 C4.5 10 0 5.5 0 0 Z" fill="currentColor" /></svg>
                 </div>
             }}
-            {if !t.Color.isEmpty { <span class="stripe" style:background={t.Color}></span> }}
+            {if !t.Color.isEmpty { <span className="stripe" style={Style(background: t.Color)}></span> }}
             {if !t.Icon.isEmpty {
-                <span class="icon">{t.Icon}</span>
+                <span className="icon">{t.Icon}</span>
             } else {
-                <span class="favicon" class:bell={t.Bell}>
+                <span className={t.Bell ? "favicon bell" : "favicon"}>
                     <svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 2.5 C2 2.2 2.2 2 2.5 2 L13.5 2 C13.8 2 14 2.2 14 2.5 L14 13.5 C14 13.8 13.8 14 13.5 14 L2.5 14 C2.2 14 2 13.8 2 13.5 Z M3.2 3.2 L3.2 12.8 L12.8 12.8 L12.8 3.2 Z M4.6 5.4 L5.4 4.6 L8.2 7.4 L5.4 10.2 L4.6 9.4 L6.6 7.4 Z M8.4 9.6 L11.4 9.6 L11.4 10.6 L8.4 10.6 Z" fill="currentColor" /></svg>
                 </span>
             }}
-            <span class="dot"></span>
+            <span className="dot"></span>
             {if ui.Renaming == t.ID {
-                <input class="rename" value={ui.RenameText} autofocus
+                <input className="rename" value={ui.RenameText} autofocus
                        onInput={e in ui.RenameText = e.Value}
                        onKeyDown={e in
                            e.StopPropagation()
@@ -75,66 +77,61 @@ func TabItem(c: Controller, t: Tab) -> component.Node {
                        }
                        onBlur={_ in if ui.Renaming == t.ID { c.commitRename() }} />
             } else {
-                <span class="label">{t.Shown}</span>
+                <span className="label">{t.Shown}</span>
             }}
-            {if t.IsZoomed { <span class="badge" title="A pane is zoomed">⤢</span> }}
-            {if t.Broadcast { <span class="badge" title="Broadcasting input to every pane">📡</span> }}
-            {if t.ReadOnly { <span class="badge" title="The pane is read-only">🔒</span> }}
-            {if t.PaneCount > 1 { <span class="badge panes" title="Panes">{t.PaneCount}</span> }}
-            <div class="close" role="button" title="Close tab" onPointerDown={e in e.StopPropagation()} onClick={e in
+            {if t.IsZoomed { <span className="badge" title="A pane is zoomed">⤢</span> }}
+            {if t.Broadcast { <span className="badge" title="Broadcasting input to every pane">📡</span> }}
+            {if t.ReadOnly { <span className="badge" title="The pane is read-only">🔒</span> }}
+            {if t.PaneCount > 1 { <span className="badge panes" title="Panes">{t.PaneCount}</span> }}
+            <div className="close" role="button" title="Close tab" onPointerDown={e in e.StopPropagation()} onClick={e in
                 e.StopPropagation()
                 c.Close(t.ID)
             }>
                 <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1.3 0.5 L9.5 8.7 L8.7 9.5 L0.5 1.3 Z M8.7 0.5 L9.5 1.3 L1.3 9.5 L0.5 8.7 Z" fill="currentColor" /></svg>
             </div>
             {if !t.Progress.isEmpty {
-                <div class="progress" class:error={t.Progress == "error"} class:paused={t.Progress == "paused"}
-                     class:indeterminate={t.Progress == "indeterminate"}
-                     style:width={t.Progress == "indeterminate" ? "100%" : "\(max(3, t.ProgressValue))%"}></div>
+                <div className={"progress" + (t.Progress == "error" ? " error" : "") + (t.Progress == "paused" ? " paused" : "") + (t.Progress == "indeterminate" ? " indeterminate" : "")}
+                     style={Style(width: t.Progress == "indeterminate" ? "100%" : "\(max(3, t.ProgressValue))%")}></div>
             }}
         </div>
     )
 }
 
 @MainActor
-func TabBar(c: Controller) -> component.Node {
+func TabBar(c: Controller) -> Element {
     let ws = c.ws
     let ui = c.ui
     return (
-        <header class="tabbar" class:compact={c.liveSettings.TabWidthMode == "compact"} class:fit={c.liveSettings.TabWidthMode == "titleLength"}
-                class:titlebar={ui.InTitlebar && !ui.Fullscreen} class:dragging={ui.Dragging != 0}
+        <header className={"tabbar" + (c.liveSettings.TabWidthMode == "compact" ? " compact" : "") + (c.liveSettings.TabWidthMode == "titleLength" ? " fit" : "") + (ui.InTitlebar && !ui.Fullscreen ? " titlebar" : "") + (ui.Dragging != 0 ? " dragging" : "")}
                 onPointerDown={e in
                     // An empty part of the bar is the title bar: it moves
                     // the window, and a double-click zooms it.
                     guard let n = e.Target, n.HasClass("tabbar") || n.HasClass("spacer") || n.HasClass("tabs") else { return }
                     if e.Clicks == 2 { app.TitlebarDoubleClick() } else { app.StartWindowDrag() }
-                }
-                >
-            <div class="more" role="button" title={"Profiles and settings (" + c.liveSettings.KeysFor("Terminal.OpenNewTabDropdown") + ")"} onClick={e in
+                }>
+            <div className="more" role="button" title={"Profiles and settings (" + c.liveSettings.KeysFor("Terminal.OpenNewTabDropdown") + ")"} onClick={e in
                 c.openNewTabMenu(x: e.X - 14, y: 42)
             }>
                 <svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.6 3.6 L6 8 L10.4 3.6 L11.2 4.4 L6 9.6 L0.8 4.4 Z" fill="currentColor" /></svg>
             </div>
-            <div class="tabs">
-                <component.For each={ws.Tabs} key={t in t.ID}>
-                    {t in <TabItem c={c} t={t.Value} />}
-                </component.For>
+            <div className="tabs">
+                {ws.Tabs.map { t in <TabItem key={t.ID} c={c} t={t} /> }}
                 {if ui.SettingsOpen { <SettingsTabItem c={c} /> }}
             </div>
-            <div class="new" role="button" title={"New tab (" + c.liveSettings.KeysFor("Terminal.OpenNewTab") + ")"} onClick={c.NewTab()}>
+            <div className="new" role="button" title={"New tab (" + c.liveSettings.KeysFor("Terminal.OpenNewTab") + ")"} onClick={c.NewTab()}>
                 <svg width="12" height="12" viewBox="0 0 12 12"><path d="M5.4 0.5 L6.6 0.5 L6.6 11.5 L5.4 11.5 Z M0.5 5.4 L11.5 5.4 L11.5 6.6 L0.5 6.6 Z" fill="currentColor" /></svg>
             </div>
-            <div class="spacer"></div>
+            <div className="spacer"></div>
         </header>
     )
 }
 
 @MainActor
-func SearchBox(c: Controller) -> component.Node {
+func SearchBox(c: Controller) -> Element {
     let ui = c.ui
     return (
-        <div class="search" onPointerDown={e in e.StopPropagation()}>
-            <input class="query" placeholder="Find" value={ui.SearchText} autofocus
+        <div className="search" onPointerDown={e in e.StopPropagation()}>
+            <input className="query" placeholder="Find" value={ui.SearchText} autofocus
                    onInput={e in
                        ui.SearchText = e.Value
                        c.searchChanged()
@@ -151,8 +148,8 @@ func SearchBox(c: Controller) -> component.Node {
                            c.stepMatch(e.Shift ? -1 : 1)
                        }
                    } />
-            <span class="status">{ui.SearchStatus}</span>
-            <button class="toggle" class:on={ui.SearchCase} title="Match case" onClick={_ in
+            <span className="status">{ui.SearchStatus}</span>
+            <button className={ui.SearchCase ? "toggle on" : "toggle"} title="Match case" onClick={_ in
                 ui.SearchCase = !ui.SearchCase
                 c.searchChanged()
             }>Aa</button>
@@ -164,15 +161,15 @@ func SearchBox(c: Controller) -> component.Node {
 }
 
 @MainActor
-func Palette(c: Controller) -> component.Node {
+func Palette(c: Controller) -> Element {
     let ui = c.ui
     return (
-        <div class="scrim" onPointerDown={e in
+        <div className="scrim" onPointerDown={e in
             e.StopPropagation()
             c.closePalette()
         }>
-            <div class="palette" onPointerDown={e in e.StopPropagation()}>
-                <input class="query" placeholder={ui.PaletteTitle} value={ui.PaletteText} autofocus
+            <div className="palette" onPointerDown={e in e.StopPropagation()}>
+                <input className="query" placeholder={ui.PaletteTitle} value={ui.PaletteText} autofocus
                        onInput={e in
                            ui.PaletteText = e.Value
                            ui.PaletteIndex = 0
@@ -185,20 +182,19 @@ func Palette(c: Controller) -> component.Node {
                        onKeyUp={e in
                            if e.Key == "Control" { c.SwitcherRelease() }
                        } />
-                <div class="items">
-                    <component.For each={ui.PaletteShown} key={it in it.ID}>
-                        {it in
-                            <div class="item" class:selected={ui.PaletteItems.count > ui.PaletteIndex && ui.PaletteItems[ui.PaletteIndex].ID == it.ID}
-                                 onClick={_ in
-                                     if let i = ui.PaletteItems.firstIndex(where: { $0.ID == it.ID }) { c.runPalette(i) }
-                                 }>
-                                {if !it.Swatch.isEmpty { <span class="swatch" style:background={it.Swatch}></span> }}
-                                <span class="label">{it.Label}</span>
-                                {if it.Nested { <span class="detail">›</span> } else { <span class="detail">{it.Detail}</span> }}
-                            </div>
-                        }
-                    </component.For>
-                    {if ui.PaletteItems.isEmpty { <div class="empty">No matching commands</div> }}
+                <div className="items">
+                    {ui.PaletteShown.map { it in
+                        <div key={it.ID}
+                             className={ui.PaletteItems.count > ui.PaletteIndex && ui.PaletteItems[ui.PaletteIndex].ID == it.ID ? "item selected" : "item"}
+                             onClick={_ in
+                                 if let i = ui.PaletteItems.firstIndex(where: { $0.ID == it.ID }) { c.runPalette(i) }
+                             }>
+                            {if !it.Swatch.isEmpty { <span className="swatch" style={Style(background: it.Swatch)}></span> }}
+                            <span className="label">{it.Label}</span>
+                            {if it.Nested { <span className="detail">›</span> } else { <span className="detail">{it.Detail}</span> }}
+                        </div>
+                    }}
+                    {if ui.PaletteItems.isEmpty { <div className="empty">No matching commands</div> }}
                 </div>
             </div>
         </div>
@@ -206,47 +202,45 @@ func Palette(c: Controller) -> component.Node {
 }
 
 @MainActor
-func Menu(c: Controller) -> component.Node {
+func Menu(c: Controller) -> Element {
     let ui = c.ui
     return (
-        <div class="scrim clear" onPointerDown={e in
+        <div className="scrim clear" onPointerDown={e in
             e.StopPropagation()
             c.closeMenu()
         } onContextMenu={e in e.PreventDefault()}>
-            <div class="menu" style:left={"\(ui.MenuX)px"} style:top={"\(ui.MenuY)px"} onPointerDown={e in e.StopPropagation()}>
-                <component.For each={ui.MenuItems} key={it in it.ID}>
-                    {it in
-                        <div class:sep={it.Separator} class:mitem={!it.Separator} onClick={_ in if !it.Separator { c.runMenu(it.ID) }}>
-                            {if !it.Separator {
-                                <span class="label">{it.Label}</span>
-                            }}
-                            {if !it.Separator {
-                                <span class="detail">{it.Detail.hasPrefix("#") ? "" : it.Detail}</span>
-                            }}
-                        </div>
-                    }
-                </component.For>
+            <div className="menu" style={Style(left: "\(ui.MenuX)px", top: "\(ui.MenuY)px")} onPointerDown={e in e.StopPropagation()}>
+                {ui.MenuItems.map { it in
+                    <div key={it.ID} className={it.Separator ? "sep" : "mitem"} onClick={_ in if !it.Separator { c.runMenu(it.ID) }}>
+                        {if !it.Separator {
+                            <span className="label">{it.Label}</span>
+                        }}
+                        {if !it.Separator {
+                            <span className="detail">{it.Detail.hasPrefix("#") ? "" : it.Detail}</span>
+                        }}
+                    </div>
+                }}
             </div>
         </div>
     )
 }
 
 @MainActor
-func Dialog(c: Controller) -> component.Node {
+func Dialog(c: Controller) -> Element {
     let ui = c.ui
     return (
-        <div class="scrim dim" onPointerDown={e in e.StopPropagation()}>
-            <div class="dialog" tabindex="0" autofocus onKeyDown={e in
+        <div className="scrim dim" onPointerDown={e in e.StopPropagation()}>
+            <div className="dialog" tabindex="0" autofocus onKeyDown={e in
                 e.StopPropagation()
                 if e.Key == "Enter" { c.runDialog(0) }
                 if e.Key == "Escape" { c.runDialog(ui.DialogButtons.count - 1) }
             }>
                 <h3>{ui.DialogTitle}</h3>
                 <p>{ui.DialogBody}</p>
-                <div class="buttons">
-                    <component.For each={ui.DialogButtons} key={b in b.ID}>
-                        {b in <button class:primary={b.ID == 0} onClick={_ in c.runDialog(b.ID)}>{b.Label}</button>}
-                    </component.For>
+                <div className="buttons">
+                    {ui.DialogButtons.map { b in
+                        <button key={b.ID} className={b.ID == 0 ? "primary" : ""} onClick={_ in c.runDialog(b.ID)}>{b.Label}</button>
+                    }}
                 </div>
             </div>
         </div>
@@ -254,13 +248,13 @@ func Dialog(c: Controller) -> component.Node {
 }
 
 @MainActor
-func WindowRenamer(c: Controller) -> component.Node {
+func WindowRenamer(c: Controller) -> Element {
     let ui = c.ui
     return (
-        <div class="scrim dim" onPointerDown={e in e.StopPropagation()}>
-            <div class="dialog">
+        <div className="scrim dim" onPointerDown={e in e.StopPropagation()}>
+            <div className="dialog">
                 <h3>Rename window</h3>
-                <input class="query" value={ui.RenameText} autofocus
+                <input className="query" value={ui.RenameText} autofocus
                        onInput={e in ui.RenameText = e.Value}
                        onKeyDown={e in
                            e.StopPropagation()
@@ -275,7 +269,7 @@ func WindowRenamer(c: Controller) -> component.Node {
 /// The window: the tab bar, the terminal surface, and what goes over it.
 /// A controller can be given, to drive and read it from outside (a test).
 @MainActor
-public func TerminalWindow(controller: Controller? = nil) -> component.Node {
+public func TerminalWindow(controller: Controller? = nil) -> Element {
     let c = controller ?? Controller()
     let ui = c.ui
     @state.State var surface: component.Ref = nil
@@ -288,13 +282,13 @@ public func TerminalWindow(controller: Controller? = nil) -> component.Node {
         Task { await c.scripted(CommandLine.arguments) }
     }
     return (
-        <div class="window" onPointerMove={e in c.tabDragMove(x: e.X)} onPointerUp={_ in c.tabDragEnd()}>
+        <div className="window" onPointerMove={e in c.tabDragMove(x: e.X)} onPointerUp={_ in c.tabDragEnd()}>
             {if !ui.FocusMode && (c.liveSettings.AlwaysShowTabs || c.ws.Tabs.count > 1) { <TabBar c={c} /> }}
             {if (ui.FocusMode || (!c.liveSettings.AlwaysShowTabs && c.ws.Tabs.count <= 1)) && ui.InTitlebar && !ui.Fullscreen {
-                <div class="dragstrip" onPointerDown={e in if e.Clicks == 2 { app.TitlebarDoubleClick() } else { app.StartWindowDrag() }}></div>
+                <div className="dragstrip" onPointerDown={e in if e.Clicks == 2 { app.TitlebarDoubleClick() } else { app.StartWindowDrag() }}></div>
             }}
-            <div class="stage">
-                <div class="surface" tabindex="0" ref={$surface}
+            <div className="stage">
+                <div className="surface" tabindex="0" ref={$surface}
                      onKeyDown={e in c.KeyDown(e)}
                      onKeyUp={e in c.KeyUp(e)}
                      onBeforeInput={e in c.BeforeInput(e)}
@@ -309,8 +303,8 @@ public func TerminalWindow(controller: Controller? = nil) -> component.Node {
                 </div>
                 {if ui.SettingsShown { <SettingsPage c={c} /> }}
                 {if ui.Search { <SearchBox c={c} /> }}
-                {if !ui.Hover.isEmpty { <div class="hover">{ui.Hover}</div> }}
-                {if !ui.Toast.isEmpty { <div class="toast">{ui.Toast}</div> }}
+                {if !ui.Hover.isEmpty { <div className="hover">{ui.Hover}</div> }}
+                {if !ui.Toast.isEmpty { <div className="toast">{ui.Toast}</div> }}
                 {if ui.Palette { <Palette c={c} /> }}
                 {if ui.Menu { <Menu c={c} /> }}
                 {if ui.Dialog { <Dialog c={c} /> }}
