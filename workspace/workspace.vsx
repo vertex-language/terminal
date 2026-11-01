@@ -13,7 +13,6 @@ import (
     "terminal/view"
     "terminal/vt"
     "ui/app"
-    "ui/viewport"
     "web/html"
 )
 
@@ -273,6 +272,7 @@ func WindowRenamer(c: Controller) -> Element {
 public func TerminalWindow(controller: Controller? = nil) -> Element {
     // Made once: the window keeps its controller however often it renders.
     let c = useMemo({ controller ?? Controller() }, [])
+    let screen = useMemo({ Screen(c) }, [])
     let ui = c.ui
     let surface = useRef<HTMLElement>(nil)
     useEffect({
@@ -301,7 +301,7 @@ public func TerminalWindow(controller: Controller? = nil) -> Element {
                      onContextMenu={e in e.PreventDefault()}
                      onFocus={c.Focus(true)}
                      onBlur={c.Focus(false)}>
-                    {viewport.Viewport(class: "screen", handle: { h in c.handle = h }) { w, h, t in c.Draw(w, h, t) }}
+                    <Viewport source={screen} class="screen" />
                 </div>
                 {if ui.SettingsShown { <SettingsPage c={c} /> }}
                 {if ui.Search { <SearchBox c={c} /> }}
