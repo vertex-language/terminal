@@ -13,6 +13,7 @@ import (
     "ui/component"
     "ui/viewport"
     "ui/window"
+    "web/html"
 )
 
 /// What the window holds: the tabs and their panes, the settings, what
@@ -27,7 +28,7 @@ public final class Controller {
     var settingsFile: string
     var settingsStamp: int64 = -1
     var handle: viewport.Handle? = nil
-    var surfaceNode: component.Ref = nil
+    var surfaceNode: html.Node? = nil
     var focused = false
     var blinkOn = true
     var textBlinkOn = true
@@ -93,7 +94,7 @@ public final class Controller {
     /// settings tab edits in place of the file.
     var settingsText = ""
     /// Each tab's element, to measure while one is dragged.
-    var tabNodes: [int: component.Ref] = [:]
+    var tabNodes: [int: html.Node] = [:]
     /// The tab pressed, where the pointer was then (less what a move
     /// across a neighbour has taken up), and whether it has moved enough
     /// to be a drag.

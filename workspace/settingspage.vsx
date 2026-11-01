@@ -2,10 +2,7 @@ package workspace
 
 import (
     "icons/lucide"
-    "ui/component"
     "ui/icon"
-    "ui/state"
-    "web/dom"
 )
 
 // The settings tab's page: a sidebar of pages (back to the terminal, a
@@ -78,10 +75,10 @@ func NavItem(c: Controller, p: SettingsPageInfo) -> Element {
 /// keyboard.
 @MainActor
 func SettingField(c: Controller, r: SettingRow) -> Element {
-    @state.State var draft: string = r.Value
+    let (draft, setDraft) = useState(r.Value)
     return (
         <input className="sfield" value={r.Value} spellcheck="false"
-               onInput={e in draft = e.Value}
+               onInput={e in setDraft(e.Value)}
                onKeyDown={e in
                    e.StopPropagation()
                    if e.Key == "Enter" && draft != r.Value { r.Set(draft) }
@@ -93,12 +90,12 @@ func SettingField(c: Controller, r: SettingRow) -> Element {
 
 @MainActor
 func SettingNumber(c: Controller, r: SettingRow) -> Element {
-    @state.State var draft: string = r.Value
+    let (draft, setDraft) = useState(r.Value)
     return (
         <div className="stepper" onClick={e in e.StopPropagation()}>
             <div className="sstep" role="button" title="Less" onClick={_ in c.stepNumber(r, -1)}>−</div>
             <input className="snum" value={r.Value}
-                   onInput={e in draft = e.Value}
+                   onInput={e in setDraft(e.Value)}
                    onKeyDown={e in
                        e.StopPropagation()
                        if e.Key == "Enter" { c.typedNumber(r, draft) }

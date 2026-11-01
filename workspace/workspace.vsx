@@ -13,20 +13,21 @@ import (
     "terminal/view"
     "terminal/vt"
     "ui/app"
-    "ui/component"
-    "ui/state"
     "ui/viewport"
-    "web/dom"
     "web/html"
 )
 
 @MainActor
 func TabItem(c: Controller, t: Tab) -> Element {
     let ui = c.ui
-    @state.State var node: component.Ref = nil
-    component.OnMount { c.tabNodes[t.ID] = node }
+    // The tab's element, measured while a tab is dragged; dropped with it.
+    let node = useRef<HTMLElement>(nil)
+    useEffect({
+        c.tabNodes[t.ID] = node.current
+        return { c.tabNodes[t.ID] = nil }
+    }, [])
     return (
-        <div ref={$node}
+        <div ref={node}
              className={"tab" + (c.IsFront(t.ID) ? " active" : "") + (t.Bell ? " bell" : "") + (!t.Color.isEmpty ? " colored" : "") + (ui.Dragging == t.ID ? " dragging" : "")}
              style={Style(
                  background: c.IsFront(t.ID) ? ui.SurfaceColor : "",
@@ -270,17 +271,18 @@ func WindowRenamer(c: Controller) -> Element {
 /// A controller can be given, to drive and read it from outside (a test).
 @MainActor
 public func TerminalWindow(controller: Controller? = nil) -> Element {
-    let c = controller ?? Controller()
+    // Made once: the window keeps its controller however often it renders.
+    let c = useMemo({ controller ?? Controller() }, [])
     let ui = c.ui
-    @state.State var surface: component.Ref = nil
-    component.OnMount {
-        c.surfaceNode = surface
+    let surface = useRef<HTMLElement>(nil)
+    useEffect({
+        c.surfaceNode = surface.current
         app.OnCloseRequest { c.tryQuit() }
         c.Launch(CommandLine.arguments)
         c.focusSurface()
         Task { await c.tick() }
         Task { await c.scripted(CommandLine.arguments) }
-    }
+    }, [])
     return (
         <div className="window" onPointerMove={e in c.tabDragMove(x: e.X)} onPointerUp={_ in c.tabDragEnd()}>
             {if !ui.FocusMode && (c.liveSettings.AlwaysShowTabs || c.ws.Tabs.count > 1) { <TabBar c={c} /> }}
@@ -288,7 +290,7 @@ public func TerminalWindow(controller: Controller? = nil) -> Element {
                 <div className="dragstrip" onPointerDown={e in if e.Clicks == 2 { app.TitlebarDoubleClick() } else { app.StartWindowDrag() }}></div>
             }}
             <div className="stage">
-                <div className="surface" tabindex="0" ref={$surface}
+                <div className="surface" tabindex="0" ref={surface}
                      onKeyDown={e in c.KeyDown(e)}
                      onKeyUp={e in c.KeyUp(e)}
                      onBeforeInput={e in c.BeforeInput(e)}
