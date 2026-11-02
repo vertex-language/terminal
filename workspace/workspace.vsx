@@ -320,7 +320,7 @@ extension Controller {
     /// The first tabs: what the command line asks (wt's subcommands, or
     /// --profile), else the settings' startupActions, else one tab of the
     /// default profile; and the window as launchMode says.
-    func Launch(_ args: [string]) {
+    func Launch(args: [string]) {
         if !settings.Warnings.isEmpty { toast(settings.Warnings[0]) }
         var words: [string] = []
         var i = 1
@@ -361,7 +361,7 @@ extension Controller {
     /// What the command line asks for after the first shell starts, for
     /// demonstrations and tests: `--tabs n` opens more tabs, `--type text`
     /// types into the one in front ("\n" as Enter).
-    func scripted(_ args: [string]) async {
+    func scripted(args: [string]) async {
         var i = 1
         while i < args.count {
             if args[i] == "--tabs" && i + 1 < args.count {
@@ -400,7 +400,7 @@ extension Controller {
 }
 
 /// Text with each "\\n" (backslash, n) as a newline.
-func unescapeNewlines(_ s: string) -> string {
+func unescapeNewlines(s: string) -> string {
     let b = [uint8](s.utf8)
     var out: [uint8] = []
     var i = 0

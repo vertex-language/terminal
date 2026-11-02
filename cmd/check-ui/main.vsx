@@ -15,7 +15,7 @@ import (
 
 var failures = 0
 
-func check(_ ok: bool, _ what: string) {
+func check(ok: bool, what: string) {
     if ok {
         print("ok   \(what)")
     } else {
@@ -25,7 +25,7 @@ func check(_ ok: bool, _ what: string) {
 }
 
 /// Waits up to seconds for cond, looking every 20 ms while the shells run.
-func until(_ seconds: float64, _ cond: () -> bool) async -> bool {
+func until(seconds: float64, cond: () -> bool) async -> bool {
     var waited: float64 = 0
     while waited < seconds {
         if cond() { return true }
@@ -36,7 +36,7 @@ func until(_ seconds: float64, _ cond: () -> bool) async -> bool {
 }
 
 /// How many times needle appears in text.
-func count(_ text: string, _ needle: string) -> int {
+func count(text: string, needle: string) -> int {
     let t = [uint8](text.utf8)
     let n = [uint8](needle.utf8)
     var found = 0
@@ -55,18 +55,18 @@ func count(_ text: string, _ needle: string) -> int {
 }
 
 @MainActor
-func key(_ s: componenttest.Screen, _ key: string, _ code: string, control: bool = false, meta: bool = false, shift: bool = false, alt: bool = false) {
+func key(s: componenttest.Screen, key: string, code: string, control: bool = false, meta: bool = false, shift: bool = false, alt: bool = false) {
     _ = s.Page.Handle(.keyDown(web.Key(Key: key, Code: code, Shift: shift, Control: control, Alt: alt, Meta: meta)))
 }
 
 /// Whether every pane's screen shows something.
 @MainActor
-func prompted(_ c: workspace.Controller) -> bool {
+func prompted(c: workspace.Controller) -> bool {
     return c.PaneTexts().allSatisfy { !$0.allSatisfy { $0 == "\n" || $0 == " " } }
 }
 
 @MainActor
-func type(_ s: componenttest.Screen, _ text: string) {
+func type(s: componenttest.Screen, text: string) {
     _ = s.Page.Handle(.text(text))
 }
 

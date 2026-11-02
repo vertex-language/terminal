@@ -87,7 +87,7 @@ final class Shell {
     }
 
     /// Reads what the shell writes into the screen until it ends.
-    func pump(_ s: pty.Session, _ gen: int) async {
+    func pump(s: pty.Session, gen: int) async {
         var buf = [uint8](repeating: 0, count: 65536)
         while true {
             var n = 0
@@ -124,7 +124,7 @@ final class Shell {
     }
 
     /// Writes bytes for the shell to read, after anything written before.
-    func Send(_ bytes: [uint8]) {
+    func Send(bytes: [uint8]) {
         if bytes.isEmpty || Exited { return }
         outbox.append(contentsOf: bytes)
         if writing { return }
@@ -185,14 +185,14 @@ final class Shell {
     }
 }
 
-func exitCodeOf(_ status: process.ExitStatus?) -> int {
+func exitCodeOf(status: process.ExitStatus?) -> int {
     guard let s = status else { return 0 }
     return int(s.Code ?? -1)
 }
 
 /// A command line as a shell would split it: words, with quotes and
 /// backslashes.
-func splitCommandline(_ s: string) -> [string] {
+func splitCommandline(s: string) -> [string] {
     var out: [string] = []
     var cur: [uint8] = []
     var any = false
@@ -233,7 +233,7 @@ func splitCommandline(_ s: string) -> [string] {
 }
 
 /// ~ and ~/ at the start of a path as the home directory.
-func expandHome(_ p: string?) -> string? {
+func expandHome(p: string?) -> string? {
     guard let path = p, !path.isEmpty else { return nil }
     if path == "~" || path == "%USERPROFILE%" { return user.Home() }
     if path.hasPrefix("~/") { return (user.Home() ?? "") + String(path.dropFirst(1)) }
@@ -241,7 +241,7 @@ func expandHome(_ p: string?) -> string? {
 }
 
 /// ${NAME} and %NAME% in a value, from the environment.
-func expandEnv(_ v: string) -> string {
+func expandEnv(v: string) -> string {
     let b = [uint8](v.utf8)
     var out: [uint8] = []
     var i = 0
@@ -275,7 +275,7 @@ func expandEnv(_ v: string) -> string {
 }
 
 /// A path with the home directory as ~, and only its last two parts.
-func shortPath(_ path: string) -> string {
+func shortPath(path: string) -> string {
     var p = path
     if let home = user.Home(), p.hasPrefix(home) {
         p = "~" + String(p.dropFirst(home.count))

@@ -87,17 +87,17 @@ struct Action {
     var Command = ""
     var Args: json.Object = json.Object()
 
-    func Str(_ key: string, _ def: string = "") -> string {
+    func Str(key: string, def: string = "") -> string {
         return Args[key]?.String ?? def
     }
 
-    func Int(_ key: string, _ def: int = 0) -> int {
+    func Int(key: string, def: int = 0) -> int {
         if let v = Args[key]?.Int { return int(v) }
         if let d = Args[key]?.Double { return int(d) }
         return def
     }
 
-    func Bool(_ key: string, _ def: bool = false) -> bool {
+    func Bool(key: string, def: bool = false) -> bool {
         return Args[key]?.Bool ?? def
     }
 }
@@ -161,7 +161,7 @@ final class Settings {
     init() {}
 
     /// The profile a name or guid names, or the default one.
-    func ProfileNamed(_ key: string?) -> Profile {
+    func ProfileNamed(key: string?) -> Profile {
         if let k = key, !k.isEmpty {
             for p in Profiles where p.Name == k || p.Guid.lowercased() == k.lowercased() { return p }
         }
@@ -173,7 +173,7 @@ final class Settings {
     var VisibleProfiles: [Profile] { return Profiles.filter { !$0.Hidden } }
 
     /// A scheme by name: the settings' own, then the built-in ones.
-    func Scheme(_ name: string) -> view.Theme? {
+    func Scheme(name: string) -> view.Theme? {
         for s in Schemes where s.Name == name { return s }
         for s in builtinSchemes where s.Name == name { return s }
         return nil
@@ -188,7 +188,7 @@ final class Settings {
 
     /// The theme a profile is drawn in, for a dark or light appearance:
     /// its scheme, with its own colors over it.
-    func ThemeFor(_ p: Profile, dark: bool) -> view.Theme {
+    func ThemeFor(p: Profile, dark: bool) -> view.Theme {
         var name = p.ColorScheme
         if dark && !p.ColorSchemeDark.isEmpty { name = p.ColorSchemeDark }
         if !dark && !p.ColorSchemeLight.isEmpty { name = p.ColorSchemeLight }
@@ -217,7 +217,7 @@ final class Settings {
     }
 
     /// The action bound to a chord, if any.
-    func ActionFor(_ chord: KeyChord) -> Action? {
+    func ActionFor(chord: KeyChord) -> Action? {
         // The last binding of a chord wins: the user's come after the
         // defaults.
         var i = Bindings.count - 1
@@ -233,7 +233,7 @@ final class Settings {
     }
 
     /// The chord an action is bound to, written for a menu ("⌘⇧T").
-    func KeysFor(_ id: string) -> string {
+    func KeysFor(id: string) -> string {
         var i = Bindings.count - 1
         while i >= 0 {
             if Bindings[i].ActionID == id {
@@ -264,7 +264,7 @@ func settingsPath() -> string {
 }
 
 /// When the file last changed, to notice an edit.
-func settingsModified(_ path: string) -> int64 {
+func settingsModified(path: string) -> int64 {
     if let m = try? fs.Metadata(fs.Path(path)) { return m.Modified.UnixSeconds * 1000 + int64(m.Modified.Nanoseconds / 1_000_000) }
     return -1
 }
@@ -295,7 +295,7 @@ func LoadSettings(path: string? = nil, writeIfMissing: bool = true) -> Settings 
 }
 
 /// Parses settings JSON text over the defaults (for tests).
-func SettingsFrom(_ text: string) -> Settings {
+func SettingsFrom(text: string) -> Settings {
     let s = Settings()
     if let d = try? json.Parse(stripJSONC(defaultSettings)) { apply(d, to: s, user: false) }
     s.Profiles = detectedProfiles()
@@ -310,11 +310,11 @@ func SettingsFrom(_ text: string) -> Settings {
     return s
 }
 
-func apply(_ v: json.Value, to s: Settings, user: bool) {
+func apply(v: json.Value, to s: Settings, user: bool) {
     guard let o = v.Object else { return }
-    func str(_ k: string) -> string? { return o[k]?.String }
-    func bool(_ k: string) -> bool? { return o[k]?.Bool }
-    func num(_ k: string) -> int? {
+    func str(k: string) -> string? { return o[k]?.String }
+    func bool(k: string) -> bool? { return o[k]?.Bool }
+    func num(k: string) -> int? {
         if let i = o[k]?.Int { return int(i) }
         if let d = o[k]?.Double { return int(d) }
         return nil
@@ -426,10 +426,10 @@ func apply(_ v: json.Value, to s: Settings, user: bool) {
     }
 }
 
-func applyProfile(_ o: json.Object, to p: inout Profile) {
-    func str(_ k: string) -> string? { return o[k]?.String }
-    func bool(_ k: string) -> bool? { return o[k]?.Bool }
-    func num(_ k: string) -> float32? {
+func applyProfile(o: json.Object, to p: inout Profile) {
+    func str(k: string) -> string? { return o[k]?.String }
+    func bool(k: string) -> bool? { return o[k]?.Bool }
+    func num(k: string) -> float32? {
         if let d = o[k]?.Double { return float32(d) }
         return nil
     }
@@ -509,7 +509,7 @@ func applyProfile(_ o: json.Object, to p: inout Profile) {
     if let x = str("source") { p.Source = x }
 }
 
-func fontList(_ face: string) -> [string] {
+func fontList(face: string) -> [string] {
     var out: [string] = []
     for part in face.split(separator: ",") {
         let f = trimmed(String(part))
@@ -519,7 +519,7 @@ func fontList(_ face: string) -> [string] {
     return out
 }
 
-func fontWeight(_ v: json.Value) -> int {
+func fontWeight(v: json.Value) -> int {
     if let n = v.Int { return int(n) }
     switch v.String ?? "" {
     case "thin": return 100
@@ -534,7 +534,7 @@ func fontWeight(_ v: json.Value) -> int {
     }
 }
 
-func parseScheme(_ v: json.Value) -> view.Theme? {
+func parseScheme(v: json.Value) -> view.Theme? {
     guard let o = v.Object, let name = o["name"]?.String else { return nil }
     let keys = ["black", "red", "green", "yellow", "blue", "purple", "cyan", "white",
                 "brightBlack", "brightRed", "brightGreen", "brightYellow", "brightBlue", "brightPurple", "brightCyan", "brightWhite"]
@@ -551,7 +551,7 @@ func parseScheme(_ v: json.Value) -> view.Theme? {
 }
 
 /// "cmd+shift+t" as a chord; nil for what can't be one.
-func parseChord(_ text: string) -> KeyChord? {
+func parseChord(text: string) -> KeyChord? {
     var c = KeyChord()
     let parts = text.lowercased().split(separator: "+", omittingEmptySubsequences: false).map { String($0) }
     var i = 0
@@ -578,7 +578,7 @@ func parseChord(_ text: string) -> KeyChord? {
 }
 
 /// A key's name as bindings write it, from the many ways to say it.
-func normalizeKey(_ k: string) -> string {
+func normalizeKey(k: string) -> string {
     switch k {
     case "plus", "=", "numpad_plus": return "="
     case "minus", "-", "numpad_minus": return "-"
@@ -659,7 +659,7 @@ func chordOf(code: string, key: string, shift: bool, control: bool, alt: bool, m
 }
 
 /// A chord as macOS menus write it: ⌃⌥⇧⌘ then the key.
-func chordLabel(_ c: KeyChord) -> string {
+func chordLabel(c: KeyChord) -> string {
     var s = ""
     if c.Ctrl { s += "⌃" }
     if c.Alt { s += "⌥" }
@@ -718,14 +718,14 @@ func detectedProfiles() -> [Profile] {
 }
 
 /// A stable guid for a name: what a generated profile is known by.
-func guidFor(_ name: string) -> string {
+func guidFor(name: string) -> string {
     var h1: uint64 = 0xcbf29ce484222325
     var h2: uint64 = 0x84222325cbf29ce4
     for b in name.utf8 {
         h1 = (h1 ^ uint64(b)) &* 0x100000001b3
         h2 = (h2 ^ uint64(b)) &* 0x100000001b3 &+ 0x9e3779b97f4a7c15
     }
-    func hex(_ v: uint64, _ n: int) -> string {
+    func hex(v: uint64, n: int) -> string {
         let digits: [string] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"]
         var s = ""
         var x = v
@@ -740,7 +740,7 @@ func guidFor(_ name: string) -> string {
 
 /// The file written the first time: the profiles found, and room for the
 /// user's own settings.
-func writeStarter(_ path: string, _ s: Settings) {
+func writeStarter(path: string, s: Settings) {
     var list: [string] = []
     for p in s.Profiles {
         list.append("            {\n                \"guid\": \(json.Quote(p.Guid)),\n                \"name\": \(json.Quote(p.Name)),\n                \"hidden\": \(p.Hidden ? "true" : "false"),\n                \"source\": \(json.Quote(p.Source))\n            }")
@@ -777,7 +777,7 @@ func writeStarter(_ path: string, _ s: Settings) {
 }
 
 /// s without the spaces and tabs around it.
-func trimmed(_ s: string) -> string {
+func trimmed(s: string) -> string {
     let b = [uint8](s.utf8)
     var a = 0
     var e = b.count
@@ -787,7 +787,7 @@ func trimmed(_ s: string) -> string {
 }
 
 /// The directory a path is in.
-func parentDir(_ path: string) -> string {
+func parentDir(path: string) -> string {
     let b = [uint8](path.utf8)
     var i = b.count - 1
     while i > 0 && b[i] != 0x2F { i -= 1 }
@@ -797,7 +797,7 @@ func parentDir(_ path: string) -> string {
 
 /// JSON with comments (// and /* */) and trailing commas, as settings.json
 /// may be written, made plain JSON.
-func stripJSONC(_ text: string) -> string {
+func stripJSONC(text: string) -> string {
     let b = [uint8](text.utf8)
     var out: [uint8] = []
     var i = 0
@@ -863,7 +863,7 @@ func stripJSONC(_ text: string) -> string {
 
 /// A key for an action the user wrote without an id: its command and
 /// arguments.
-func actionKey(_ a: Action) -> string {
+func actionKey(a: Action) -> string {
     var s = a.Command
     for (k, v) in a.Args.Members where k != "action" {
         s += "." + k + "=" + (v.String ?? json.Encode(v))
@@ -872,8 +872,8 @@ func actionKey(_ a: Action) -> string {
 }
 
 /// What the command palette calls an action, as Windows Terminal does.
-func actionName(_ a: Action) -> string {
-    func dir(_ d: string) -> string {
+func actionName(a: Action) -> string {
+    func dir(d: string) -> string {
         switch d {
         case "up": return "up"
         case "down": return "down"

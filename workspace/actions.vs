@@ -18,7 +18,7 @@ extension Controller {
     /// Runs an action; false where it didn't apply (copy with nothing
     /// selected), so its key goes on to the terminal.
     @discardableResult
-    func Run(_ a: Action) -> bool {
+    func Run(a: Action) -> bool {
         let tab = ws.Current
         let pane = currentPane
         switch a.Command {
@@ -369,7 +369,7 @@ extension Controller {
 
     /// Runs an action by its command and arguments, written as settings
     /// write them.
-    func RunCommand(_ command: string, _ args: [string: json.Value] = [:]) {
+    func RunCommand(command: string, args: [string: json.Value] = [:]) {
         var a = Action()
         a.Command = command
         var o = json.Object()
@@ -380,7 +380,7 @@ extension Controller {
     }
 
     /// Runs the action with an id ("Terminal.SplitPaneRight").
-    public func RunAction(_ id: string) {
+    public func RunAction(id: string) {
         if let a = settings.Actions[id] { Run(a) }
     }
 
@@ -475,7 +475,7 @@ extension Controller {
         redraw()
     }
 
-    func stepMatch(_ by: int) {
+    func stepMatch(by: int) {
         if matches.isEmpty { return }
         // Next goes up the buffer (older), as Enter in the search box does.
         matchIndex = ((matchIndex - by) % matches.count + matches.count) % matches.count
@@ -497,7 +497,7 @@ extension Controller {
 
     // MARK: - Marks and commands
 
-    func scrollToMark(_ direction: string) {
+    func scrollToMark(direction: string) {
         guard let t = current?.term else { return }
         let top = t.ViewTop
         var target: int? = nil
@@ -569,7 +569,7 @@ extension Controller {
     func filterPalette() {
         var items: [Item] = []
         var runs: [() -> void] = []
-        func add(_ label: string, _ detail: string = "", nested: bool = false, swatch: string = "", _ run: () -> void) {
+        func add(label: string, detail: string = "", nested: bool = false, swatch: string = "", run: () -> void) {
             items.append(Item(ID: runs.count, Label: label, Detail: detail, Nested: nested, Swatch: swatch))
             runs.append(run)
         }
@@ -654,7 +654,7 @@ extension Controller {
         ui.PaletteShown = n == 0 ? [] : [Item](ui.PaletteItems[first..<min(n, first + rows)])
     }
 
-    func nestPalette(_ mode: string) {
+    func nestPalette(mode: string) {
         paletteStack.append(mode)
         ui.PaletteText = ""
         ui.PaletteIndex = 0
@@ -663,7 +663,7 @@ extension Controller {
     }
 
     /// Runs the palette's item i (by its place in the list).
-    func runPalette(_ index: int) {
+    func runPalette(index: int) {
         if index < 0 || index >= ui.PaletteItems.count { return }
         let item = ui.PaletteItems[index]
         if item.ID < 0 || item.ID >= paletteRun.count { return }
@@ -680,7 +680,7 @@ extension Controller {
 
     /// Keys in the palette: up and down to choose, Enter to run, Escape
     /// (or Backspace in an empty nested list) to go back.
-    func PaletteKey(_ key: string, control: bool, shift: bool) -> bool {
+    func PaletteKey(key: string, control: bool, shift: bool) -> bool {
         let n = ui.PaletteItems.count
         switch key {
         case "ArrowDown":
@@ -728,7 +728,7 @@ extension Controller {
     /// Whether ⌃ is held for ⌃Tab: the switcher stays while it is.
     var switcherKeyHeld: bool { return lastKeyControl }
 
-    func openSwitcher(_ by: int) {
+    func openSwitcher(by: int) {
         if ui.Palette && ui.PaletteMode == "switcher" {
             let n = ui.PaletteItems.count
             if n > 0 { ui.PaletteIndex = (ui.PaletteIndex + by + n) % n }
@@ -749,7 +749,7 @@ extension Controller {
 
     // MARK: - Menus
 
-    func openMenu(x: float32, y: float32, _ items: [(string, string, () -> void)]) {
+    func openMenu(x: float32, y: float32, items: [(string, string, () -> void)]) {
         var list: [Item] = []
         var runs: [() -> void] = []
         for it in items {
@@ -777,7 +777,7 @@ extension Controller {
         ui.Palette = false
     }
 
-    func runMenu(_ id: int) {
+    func runMenu(id: int) {
         ui.Menu = false
         focusSurface()
         if id >= 0 && id < menuRun.count { menuRun[id]() }
@@ -789,7 +789,7 @@ extension Controller {
         focusSurface()
     }
 
-    func keys(_ id: string) -> string { return settings.KeysFor(id) }
+    func keys(id: string) -> string { return settings.KeysFor(id) }
 
     /// The ⌄ menu: a tab per profile, then settings and the palette.
     func openNewTabMenu(x: float32, y: float32) {
@@ -807,7 +807,7 @@ extension Controller {
     }
 
     /// A tab's menu (right-click on it), as Windows Terminal's.
-    func openTabMenu(_ id: int, x: float32, y: float32) {
+    func openTabMenu(id: int, x: float32, y: float32) {
         Select(id)
         openMenu(x: x, y: y, [
             ("Change tab color…", "", { self.openColorPicker(id, x: x, y: y) }),
@@ -825,7 +825,7 @@ extension Controller {
         ])
     }
 
-    func openColorPicker(_ id: int, x: float32, y: float32) {
+    func openColorPicker(id: int, x: float32, y: float32) {
         var items: [(string, string, () -> void)] = []
         for c in tabColors {
             let hex = c.1
@@ -890,7 +890,7 @@ extension Controller {
         app.RequestFrame()
     }
 
-    func runDialog(_ id: int) {
+    func runDialog(id: int) {
         ui.Dialog = false
         focusSurface()
         if id >= 0 && id < dialogRun.count { dialogRun[id]() }
@@ -899,7 +899,7 @@ extension Controller {
 
     // MARK: - Renaming
 
-    func startRename(_ id: int) {
+    func startRename(id: int) {
         guard let i = ws.Index(of: id) else { return }
         ui.Renaming = id
         ui.RenameText = ws.Tabs[i].Shown
@@ -932,7 +932,7 @@ extension Controller {
     /// ";" -- new-tab (nt), split-pane (sp), focus-tab (ft), move-focus
     /// (mf), swap-pane, focus-pane (fp) -- with -p profile, -d dir,
     /// --title, --tabColor, -H/-V, -s size, and a command after them.
-    func runCommandline(_ line: string) {
+    func runCommandline(line: string) {
         let words = splitCommandline(line)
         var groups: [[string]] = [[]]
         for w in words {
@@ -952,7 +952,7 @@ extension Controller {
         }
     }
 
-    func runSubcommand(_ g: [string], first: bool) {
+    func runSubcommand(g: [string], first: bool) {
         var args = g
         if args.first == "wt" || args.first == "wt.exe" { args.removeFirst() }
         var cmd = "new-tab"
@@ -1029,7 +1029,7 @@ extension Controller {
 /// How well a query matches a label: its characters in order, scored
 /// higher for runs, word starts and an early start; nil where they
 /// aren't all there.
-func fuzzyScore(_ query: string, _ label: string) -> int? {
+func fuzzyScore(query: string, label: string) -> int? {
     let q = [uint8](query.lowercased().utf8).filter { $0 != 0x20 }
     let l = [uint8](label.lowercased().utf8)
     if q.isEmpty { return 0 }
@@ -1054,7 +1054,7 @@ func fuzzyScore(_ query: string, _ label: string) -> int? {
 }
 
 /// Whether needle appears in s.
-func containsText(_ s: string, _ needle: string) -> bool {
+func containsText(s: string, needle: string) -> bool {
     let a = [uint8](s.utf8)
     let b = [uint8](needle.utf8)
     if b.isEmpty { return true }
@@ -1068,7 +1068,7 @@ func containsText(_ s: string, _ needle: string) -> bool {
 }
 
 /// s with every from as to.
-func replaceAll(_ s: string, _ from: string, _ to: string) -> string {
+func replaceAll(s: string, from: string, to: string) -> string {
     let a = [uint8](s.utf8)
     let f = [uint8](from.utf8)
     let t = [uint8](to.utf8)
@@ -1091,7 +1091,7 @@ func replaceAll(_ s: string, _ from: string, _ to: string) -> string {
 }
 
 /// Text for a URL's query: what isn't a letter or digit as %XX.
-func percentEncode(_ s: string) -> string {
+func percentEncode(s: string) -> string {
     let digits: [string] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"]
     var out = ""
     for b in s.utf8 {

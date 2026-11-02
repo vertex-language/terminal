@@ -14,12 +14,12 @@ public struct Color: Equatable {
     public static let `default` = Color(raw: 0)
 
     /// One of the 256 indexed colors.
-    public static func Indexed(_ i: int) -> Color {
+    public static func Indexed(i: int) -> Color {
         return Color(raw: (1 << 24) | uint32(i & 0xFF))
     }
 
     /// A 24-bit color.
-    public static func RGB(_ r: uint8, _ g: uint8, _ b: uint8) -> Color {
+    public static func RGB(r: uint8, g: uint8, b: uint8) -> Color {
         return Color(raw: (2 << 24) | (uint32(r) << 16) | (uint32(g) << 8) | uint32(b))
     }
 
@@ -86,7 +86,7 @@ public struct Cell: Equatable {
 
     public static let blank = Cell()
 
-    public func Has(_ attr: uint16) -> bool {
+    public func Has(attr: uint16) -> bool {
         return Attrs & attr != 0
     }
 }
@@ -158,7 +158,7 @@ var links: [string] = [""]
 var linkIDs: [string: uint32] = [:]
 
 /// The code points of a cell's rune: a cluster's, or the one.
-public func Cluster(_ rune: uint32) -> [uint32] {
+public func Cluster(rune: uint32) -> [uint32] {
     if rune >= ClusterBase {
         let i = int(rune - ClusterBase)
         if i < clusters.count { return clusters[i] }
@@ -168,13 +168,13 @@ public func Cluster(_ rune: uint32) -> [uint32] {
 }
 
 /// A cell's rune as text.
-public func RuneText(_ rune: uint32) -> string {
+public func RuneText(rune: uint32) -> string {
     var out: [uint8] = []
     appendRune(&out, rune)
     return textOf(out)
 }
 
-func internCluster(_ cps: [uint32]) -> uint32 {
+func internCluster(cps: [uint32]) -> uint32 {
     if cps.count == 1 { return cps[0] }
     var key: [uint8] = []
     for cp in cps { appendUTF8(&key, cp) }
@@ -187,12 +187,12 @@ func internCluster(_ cps: [uint32]) -> uint32 {
 }
 
 /// The URI of a hyperlink (OSC 8) by its number; "" for 0.
-public func LinkURI(_ id: uint32) -> string {
+public func LinkURI(id: uint32) -> string {
     let i = int(id)
     return i < links.count ? links[i] : ""
 }
 
-func internLink(_ uri: string) -> uint32 {
+func internLink(uri: string) -> uint32 {
     if uri.isEmpty { return 0 }
     if let id = linkIDs[uri] { return id }
     let id = uint32(links.count)
@@ -202,7 +202,7 @@ func internLink(_ uri: string) -> uint32 {
 }
 
 // appendRune appends a rune's UTF-8: a cluster's code points, or the one.
-func appendRune(_ out: inout [uint8], _ rune: uint32) {
+func appendRune(out: inout [uint8], rune: uint32) {
     if rune >= ClusterBase {
         for cp in Cluster(rune) { appendUTF8(&out, cp) }
     } else {
@@ -212,7 +212,7 @@ func appendRune(_ out: inout [uint8], _ rune: uint32) {
 
 /// The 256-color palette's colors 16-255: a 6×6×6 cube and a ramp of
 /// grays, as xterm has them. 0-15 are the theme's.
-public func PaletteRGB(_ index: int) -> (R: uint8, G: uint8, B: uint8) {
+public func PaletteRGB(index: int) -> (R: uint8, G: uint8, B: uint8) {
     if index >= 232 {
         let v = uint8(8 + (index - 232) * 10)
         return (R: v, G: v, B: v)
@@ -230,7 +230,7 @@ public func PaletteRGB(_ index: int) -> (R: uint8, G: uint8, B: uint8) {
 }
 
 // appendUTF8 appends a code point's UTF-8.
-func appendUTF8(_ out: inout [uint8], _ cp: uint32) {
+func appendUTF8(out: inout [uint8], cp: uint32) {
     if cp < 0x80 {
         out.append(uint8(cp))
     } else if cp < 0x800 {
@@ -248,6 +248,6 @@ func appendUTF8(_ out: inout [uint8], _ cp: uint32) {
     }
 }
 
-func textOf(_ b: [uint8]) -> string {
+func textOf(b: [uint8]) -> string {
     return string(decoding: b, as: UTF8.self)
 }

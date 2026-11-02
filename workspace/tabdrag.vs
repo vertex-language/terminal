@@ -7,7 +7,7 @@ import "ui/component"
 // beside it, the two trade places; let go, it settles where it is.
 
 extension Controller {
-    func tabPressed(_ id: int, x: float32) {
+    func tabPressed(id: int, x: float32) {
         dragPress = id
         dragStartX = x
         dragMoved = false
@@ -56,7 +56,7 @@ extension Controller {
 
     /// A tab's place in the bar: where it is drawn, less the shift of the
     /// one being dragged (its place in the flow).
-    func boundsOf(_ id: int) -> (X: float32, Width: float32)? {
+    func boundsOf(id: int) -> (X: float32, Width: float32)? {
         guard let n = tabNodes[id], let r = component.Bounds(of: n) else { return nil }
         let shift: float32 = ui.Dragging == id ? ui.DragShift : 0
         return (X: r.X - shift, Width: r.Width)

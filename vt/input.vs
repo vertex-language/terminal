@@ -35,25 +35,25 @@ extension Terminal {
     /// Command combinations, which are the host's shortcuts. With
     /// altSendsEscape, Alt (Option) with a key sends ESC before it, as
     /// shells' Meta bindings want.
-    public func EncodeKey(key: string, code: string, _ mods: Modifiers, altSendsEscape: bool = false) -> [uint8]? {
+    public func EncodeKey(key: string, code: string, mods: Modifiers, altSendsEscape: bool = false) -> [uint8]? {
         if mods.Meta { return nil }
         if KittyFlags != 0, let k = kittyKey(key: key, code: code, mods) { return k }
         let m = mods.param
         let esc: uint8 = 0x1B
-        func csi(_ final: string, _ n: int = 1) -> [uint8] {
+        func csi(final: string, n: int = 1) -> [uint8] {
             if m > 1 { return [uint8]("\u{1b}[\(n);\(m)\(final)".utf8) }
             return n == 1 ? [uint8]("\u{1b}[\(final)".utf8) : [uint8]("\u{1b}[\(n)\(final)".utf8)
         }
-        func ss3(_ final: string) -> [uint8] {
+        func ss3(final: string) -> [uint8] {
             if m > 1 { return [uint8]("\u{1b}[1;\(m)\(final)".utf8) }
             return [uint8]("\u{1b}O\(final)".utf8)
         }
-        func cursor(_ final: string) -> [uint8] {
+        func cursor(final: string) -> [uint8] {
             if m == 1 && AppCursorKeys { return [uint8]("\u{1b}O\(final)".utf8) }
             if m > 1 { return [uint8]("\u{1b}[1;\(m)\(final)".utf8) }
             return [uint8]("\u{1b}[\(final)".utf8)
         }
-        func tilde(_ n: int) -> [uint8] {
+        func tilde(n: int) -> [uint8] {
             if m > 1 { return [uint8]("\u{1b}[\(n);\(m)~".utf8) }
             return [uint8]("\u{1b}[\(n)~".utf8)
         }
@@ -135,7 +135,7 @@ extension Terminal {
     /// A key as the kitty keyboard protocol sends it, for the flags the
     /// program pushed; nil where the legacy encoding is the same, or the
     /// key is plain text.
-    func kittyKey(key: string, code: string, _ mods: Modifiers) -> [uint8]? {
+    func kittyKey(key: string, code: string, mods: Modifiers) -> [uint8]? {
         let f = KittyFlags
         let all = f & 8 != 0
         let m = mods.param
@@ -170,7 +170,7 @@ extension Terminal {
         case "F12": number = 24; final = "~"
         default: break
         }
-        func seq(_ n: int, _ fin: string, text: string = "") -> [uint8] {
+        func seq(n: int, fin: string, text: string = "") -> [uint8] {
             var body = n == 1 && fin != "u" && m == 1 ? "" : "\(n)"
             if m > 1 || !text.isEmpty { body += ";\(m)" }
             if !text.isEmpty { body += ";" + text }
@@ -215,7 +215,7 @@ extension Terminal {
 
     /// Text typed (or pasted without bracketing): its bytes, with newlines
     /// as carriage returns, as a terminal sends Enter.
-    public func EncodeText(_ text: string) -> [uint8] {
+    public func EncodeText(text: string) -> [uint8] {
         var out: [uint8] = []
         for b in text.utf8 {
             out.append(b == 10 ? 13 : b)
@@ -226,7 +226,7 @@ extension Terminal {
     /// A paste: bracketed where the program asked (mode 2004), so an
     /// editor or shell knows it wasn't typed; line breaks become carriage
     /// returns either way.
-    public func EncodePaste(_ text: string) -> [uint8] {
+    public func EncodePaste(text: string) -> [uint8] {
         var body: [uint8] = []
         let b = [uint8](text.utf8)
         var i = 0
@@ -250,7 +250,7 @@ extension Terminal {
 
     /// Focus coming (true) or going: what to send where the program asked
     /// to be told (mode 1004), else nil.
-    public func EncodeFocus(_ focused: bool) -> [uint8]? {
+    public func EncodeFocus(focused: bool) -> [uint8]? {
         if !FocusReporting { return nil }
         return [uint8](focused ? "\u{1b}[I".utf8 : "\u{1b}[O".utf8)
     }
@@ -259,7 +259,7 @@ extension Terminal {
     /// it asked for mouse reports, else nil. button: 0 left, 1 middle, 2
     /// right, 64/65 wheel up and down; kind: "press", "release", "move"
     /// (with the button held, or -1 for none).
-    public func EncodeMouse(button: int, column: int, row: int, kind: string, _ mods: Modifiers,
+    public func EncodeMouse(button: int, column: int, row: int, kind: string, mods: Modifiers,
                             pixelX: int = -1, pixelY: int = -1) -> [uint8]? {
         if Mouse == .off { return nil }
         if kind == "move" {

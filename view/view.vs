@@ -51,7 +51,7 @@ public struct Selection: Equatable {
     public var IsEmpty: bool { return StartLine == EndLine && StartColumn == EndColumn && !Block }
 
     /// The columns selected on a line, or nil.
-    public func Span(_ line: int, _ columns: int) -> (int, int)? {
+    public func Span(line: int, columns: int) -> (int, int)? {
         let s = Ordered
         if line < s.StartLine || line > s.EndLine { return nil }
         if Block { return (s.StartColumn, s.EndColumn) }
@@ -60,7 +60,7 @@ public struct Selection: Equatable {
         return from <= to ? (from, to) : nil
     }
 
-    func span(_ line: int, _ columns: int) -> (int, int)? {
+    func span(line: int, columns: int) -> (int, int)? {
         return Span(line, columns)
     }
 }
@@ -239,12 +239,12 @@ public final class Renderer {
         loadFaces()
     }
 
-    public func SetTheme(_ theme: Theme) {
+    public func SetTheme(theme: Theme) {
         Theme = theme
         drawn = []
     }
 
-    func metrics(_ s: float32) {
+    func metrics(s: float32) {
         if s == scale { return }
         scale = s
         let adv = regular.Measure("M") * CellWidthScale
@@ -301,7 +301,7 @@ public final class Renderer {
 
     /// The view offset (lines up from the bottom) a point on the
     /// scrollbar stands for: where dragging its thumb there puts it.
-    public func ScrollOffsetAt(y: float32, height: float32, _ t: vt.Terminal) -> int {
+    public func ScrollOffsetAt(y: float32, height: float32, t: vt.Terminal) -> int {
         let total = t.ScrollbackCount + t.Rows
         if total <= t.Rows || height <= 0 { return 0 }
         let f = max(0, min(1, y / height))
@@ -319,7 +319,7 @@ public final class Renderer {
 
     /// Draws the terminal's view into width × height device pixels and
     /// answers them (RGBA, premultiplied, top row first).
-    public func Draw(_ t: vt.Terminal, width: int, height: int, scale s: float32, cursor: CursorState,
+    public func Draw(t: vt.Terminal, width: int, height: int, scale s: float32, cursor: CursorState,
                      selection: Selection? = nil, overlay: Overlay = Overlay()) -> [uint8] {
         metrics(s)
         Drew = false
@@ -401,7 +401,7 @@ public final class Renderer {
         return pixels
     }
 
-    func defaultBackground(_ t: vt.Terminal) -> draw.Color {
+    func defaultBackground(t: vt.Terminal) -> draw.Color {
         var fg = Theme.Foreground
         var bg = Theme.Background
         if let o = t.ForegroundOverride { fg = draw.Color(o.R, o.G, o.B) }
@@ -409,7 +409,7 @@ public final class Renderer {
         return t.ReverseVideo ? fg : bg
     }
 
-    func cursorCode(_ t: vt.Terminal) -> int {
+    func cursorCode(t: vt.Terminal) -> int {
         if t.CursorStyleSet {
             switch t.Shape {
             case .block: return 0
@@ -427,7 +427,7 @@ public final class Renderer {
         }
     }
 
-    func colorOf(_ c: vt.Color, fg: bool, bold: bool, _ t: vt.Terminal) -> draw.Color {
+    func colorOf(c: vt.Color, fg: bool, bold: bool, t: vt.Terminal) -> draw.Color {
         if c.IsDefault {
             var dfg = Theme.Foreground
             var dbg = Theme.Background
@@ -447,8 +447,8 @@ public final class Renderer {
 
     /// Draws a row: as it is, or (double width or height) drawn at half
     /// the columns and stretched.
-    func drawLine(_ c: draw.Canvas, _ t: vt.Terminal, _ line: vt.Line, _ y: int, _ abs: int, _ sel: [int], _ cur: [int],
-                  _ bg: draw.Color, _ hits: [int], _ overlay: Overlay) {
+    func drawLine(c: draw.Canvas, t: vt.Terminal, line: vt.Line, y: int, abs: int, sel: [int], cur: [int],
+                  bg: draw.Color, hits: [int], overlay: Overlay) {
         let py = pad + int32(y) * cellH
         var url: [int] = []
         if let u = overlay.HoverURL, let sp = u.span(abs, t.Columns) { url = [sp.0, sp.1] }
@@ -484,8 +484,8 @@ public final class Renderer {
         }
     }
 
-    func drawRow(_ c: draw.Canvas, _ t: vt.Terminal, _ line: vt.Line, _ py: int32, _ sel: [int], _ cur: [int],
-                 _ bg: draw.Color, _ hits: [int], _ overlay: Overlay, _ url: [int]) {
+    func drawRow(c: draw.Canvas, t: vt.Terminal, line: vt.Line, py: int32, sel: [int], cur: [int],
+                 bg: draw.Color, hits: [int], overlay: Overlay, url: [int]) {
         // The row's whole width, padding included, starts as background.
         c.Fill(draw.IRect(0, py, c.Width, cellH), bg)
         let cols = min(t.Columns, line.Cells.count)
@@ -611,7 +611,7 @@ public final class Renderer {
     }
 
     /// A wavy underline: half a wave per cell's width.
-    func drawCurly(_ c: draw.Canvas, _ x: int32, _ w: int32, _ y: int32, _ t: int32, _ color: draw.Color) {
+    func drawCurly(c: draw.Canvas, x: int32, w: int32, y: int32, t: int32, color: draw.Color) {
         let amp = float32(max(int32(1), t))
         let period = float32(max(int32(4), cellW))
         var i: int32 = 0
@@ -625,7 +625,7 @@ public final class Renderer {
 
     /// A dotted or dashed underline: on, then off, from the cell's edge so
     /// the pattern runs on across cells.
-    func drawDashes(_ c: draw.Canvas, _ x: int32, _ w: int32, _ y: int32, _ t: int32, on: int32, off: int32, _ color: draw.Color) {
+    func drawDashes(c: draw.Canvas, x: int32, w: int32, y: int32, t: int32, on: int32, off: int32, color: draw.Color) {
         let period = on + off
         var i: int32 = 0
         while i < w {
@@ -640,7 +640,7 @@ public final class Renderer {
         }
     }
 
-    func drawImages(_ c: draw.Canvas, _ t: vt.Terminal, _ images: [vt.Image], _ abs: int, _ y: int) {
+    func drawImages(c: draw.Canvas, t: vt.Terminal, images: [vt.Image], abs: int, y: int) {
         let py = pad + int32(y) * cellH
         var cc = c
         cc.ClipTo(draw.IRect(pad, py, c.Width - pad - barW, cellH))
@@ -664,7 +664,7 @@ public final class Renderer {
     /// The scrollbar: a track, a thumb for what is shown, and ticks for
     /// the shell's prompts (red where a command failed) and search
     /// matches.
-    func drawScrollbar(_ c: draw.Canvas, _ t: vt.Terminal, _ overlay: Overlay, _ bg: draw.Color, _ all: bool) {
+    func drawScrollbar(c: draw.Canvas, t: vt.Terminal, overlay: Overlay, bg: draw.Color, all: bool) {
         let total = t.ScrollbackCount + t.Rows
         let h = c.Height
         let state = [t.ScrollbackCount, t.ViewOffset, t.Rows, overlay.Highlights.count, t.Version, int(h)]
@@ -696,7 +696,7 @@ public final class Renderer {
         }
     }
 
-    func drawGlyph(_ c: draw.Canvas, _ cp: uint32, bold: bool, italic: bool, x: int32, baseline: int32, _ color: draw.Color) {
+    func drawGlyph(c: draw.Canvas, cp: uint32, bold: bool, italic: bool, x: int32, baseline: int32, color: draw.Color) {
         let style: uint64 = (bold ? 1 : 0) | (italic ? 2 : 0)
         let key = uint64(cp) | (style << 32)
         var run: glyphRun
@@ -729,12 +729,12 @@ public final class Renderer {
     }
 }
 
-func hasBlink(_ line: vt.Line) -> bool {
+func hasBlink(line: vt.Line) -> bool {
     for c in line.Cells where c.Has(vt.Attr.blink) { return true }
     return false
 }
 
-func renditionCode(_ r: vt.Rendition) -> int {
+func renditionCode(r: vt.Rendition) -> int {
     switch r {
     case .single: return 0
     case .doubleWidth: return 1

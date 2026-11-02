@@ -297,19 +297,19 @@ public final class Terminal {
     public var ScrollbackCount: int { return ringCount }
 
     /// A row of the screen, 0 the top.
-    public func Row(_ y: int) -> Line {
+    public func Row(y: int) -> Line {
         return screen[y]
     }
 
     /// A row as the view shows it: the screen, or the scrollback where the
     /// view is scrolled up. 0 is the view's top.
-    public func ViewRow(_ y: int) -> Line {
+    public func ViewRow(y: int) -> Line {
         return Absolute(ringCount - ViewOffset + y)
     }
 
     /// A line by its absolute number: scrollback from 0 (the oldest), then
     /// the screen.
-    public func Absolute(_ n: int) -> Line {
+    public func Absolute(n: int) -> Line {
         if n < 0 { return Line(columns: Columns) }
         if n < ringCount {
             let l = ring[(ringStart + n) % ring.count]
@@ -385,7 +385,7 @@ public final class Terminal {
     // MARK: - Colors
 
     /// A palette color the program set (OSC 4), else nil: the theme's.
-    public func PaletteColor(_ index: int) -> (R: uint8, G: uint8, B: uint8)? {
+    public func PaletteColor(index: int) -> (R: uint8, G: uint8, B: uint8)? {
         if index < 0 || index > 255 || palette[index] == noColor { return nil }
         return rgbOf(palette[index])
     }
@@ -398,7 +398,7 @@ public final class Terminal {
 
     /// A palette color as it is shown: what the program set, the theme's,
     /// or xterm's.
-    func currentColor(_ index: int) -> uint32 {
+    func currentColor(index: int) -> uint32 {
         if palette[index] != noColor { return palette[index] }
         if index < 16 && index < ThemePalette.count { return ThemePalette[index] }
         let c = PaletteRGB(index)
@@ -479,7 +479,7 @@ public final class Terminal {
     /// Where needle appears in the screen and the scrollback, oldest
     /// first, each as the cells it covers (absolute lines, ends included).
     /// Wrapped rows are searched as one line.
-    public func Find(_ needle: string, caseSensitive: bool = false) -> [(StartColumn: int, StartLine: int, EndColumn: int, EndLine: int)] {
+    public func Find(needle: string, caseSensitive: bool = false) -> [(StartColumn: int, StartLine: int, EndColumn: int, EndLine: int)] {
         var out: [(StartColumn: int, StartLine: int, EndColumn: int, EndLine: int)] = []
         let want = foldText(needle, caseSensitive)
         if want.isEmpty { return out }
@@ -633,7 +633,7 @@ public final class Terminal {
     /// the new width: a line that wrapped becomes one again and wraps
     /// where the new margin is, and the cursor stays on its character.
     /// The alternate screen is cut or padded: its program draws it again.
-    func reflow(_ c: int, _ r: int) {
+    func reflow(c: int, r: int) {
         let mainScreen = AltScreen ? other : screen
         // The main screen's cursor: saved, where the alternate is shown.
         var curX = AltScreen ? saved.x : cx
@@ -784,11 +784,11 @@ public final class Terminal {
         afterResize()
     }
 
-    func blankCell(_ c: Cell) -> bool {
+    func blankCell(c: Cell) -> bool {
         return (c.Rune == 0 || c.Rune == 32) && c.Bg.IsDefault && c.Attrs & (Attr.inverse | Attr.anyUnderline) == 0 && c.Link == 0
     }
 
-    func fit(_ line: inout Line) {
+    func fit(line: inout Line) {
         if line.Cells.count > Columns {
             line.Cells.removeLast(line.Cells.count - Columns)
             // A wide character cut in half leaves a blank.
@@ -798,12 +798,12 @@ public final class Terminal {
         }
     }
 
-    func isBlank(_ line: Line) -> bool {
+    func isBlank(line: Line) -> bool {
         for c in line.Cells where (c.Rune != 0 && c.Rune != 32) || !c.Bg.IsDefault { return false }
         return true
     }
 
-    func blankLines(_ n: int) -> [Line] {
+    func blankLines(n: int) -> [Line] {
         return [Line](repeating: Line(columns: Columns), count: n)
     }
 
@@ -818,7 +818,7 @@ public final class Terminal {
 
     // MARK: - Scrollback
 
-    func pushScrollback(_ line: Line) {
+    func pushScrollback(line: Line) {
         if ScrollbackLimit <= 0 { return }
         if ringCount < ring.count {
             // Room left by lines taken back (popScrollback).
@@ -882,7 +882,7 @@ public final class Terminal {
         }
     }
 
-    func put(_ code: uint32) {
+    func put(code: uint32) {
         var cp = code
         let set = activeSet
         singleShift = 0
@@ -960,7 +960,7 @@ public final class Terminal {
     /// cluster of them; false where there is none to join.
     /// With widen, a character in one cell grows into the next, where the
     /// cursor is just after it.
-    func attach(_ cp: uint32, widen: bool = false) -> bool {
+    func attach(cp: uint32, widen: bool = false) -> bool {
         var x = pendingWrap ? cx : cx - 1
         if x < 0 { return false }
         if screen[cy].Cells[x].Has(Attr.spacer) && x > 0 && screen[cy].Cells[x - 1].Has(Attr.wide) { x -= 1 }
@@ -989,7 +989,7 @@ public final class Terminal {
     }
 
     /// Writing over half of a wide character blanks the other half.
-    func clearWide(_ x: int) {
+    func clearWide(x: int) {
         if x < 0 || x >= Columns { return }
         let c = screen[cy].Cells[x]
         if c.Has(Attr.spacer) && x > 0 && screen[cy].Cells[x - 1].Has(Attr.wide) {
@@ -1020,7 +1020,7 @@ public final class Terminal {
     /// Scrolls the region up n rows: rows leave at the top (to the
     /// scrollback, where the region is the main screen's top) and blank
     /// rows come in at the bottom.
-    func scrollUp(_ count: int) {
+    func scrollUp(count: int) {
         let n = min(count, bottom - top + 1)
         if n <= 0 { return }
         if !fullWidth {
@@ -1035,7 +1035,7 @@ public final class Terminal {
         Version += 1
     }
 
-    func scrollDown(_ count: int) {
+    func scrollDown(count: int) {
         let n = min(count, bottom - top + 1)
         if n <= 0 { return }
         if !fullWidth {
@@ -1055,7 +1055,7 @@ public final class Terminal {
     /// The edge of the margins the cursor is inside, or the screen's.
     var rightEdge: int { return cx <= right ? right : Columns - 1 }
 
-    func insertBlanks(_ count: int) {
+    func insertBlanks(count: int) {
         if cx < left || cx > right { return }
         let edge = right
         let n = min(count, edge - cx + 1)
@@ -1068,7 +1068,7 @@ public final class Terminal {
         Version += 1
     }
 
-    func deleteChars(_ count: int) {
+    func deleteChars(count: int) {
         if cx < left || cx > right { return }
         let edge = right
         let n = min(count, edge - cx + 1)
@@ -1123,7 +1123,7 @@ public final class Terminal {
         Version += 1
     }
 
-    func eraseChars(_ count: int) {
+    func eraseChars(count: int) {
         let n = min(count, Columns - cx)
         if n <= 0 { return }
         let blank = eraseCell
@@ -1131,7 +1131,7 @@ public final class Terminal {
         Version += 1
     }
 
-    func insertLines(_ count: int) {
+    func insertLines(count: int) {
         if cy < top || cy > bottom || cx < left || cx > right { return }
         let n = min(count, bottom - cy + 1)
         if !fullWidth {
@@ -1147,7 +1147,7 @@ public final class Terminal {
         Version += 1
     }
 
-    func deleteLines(_ count: int) {
+    func deleteLines(count: int) {
         if cy < top || cy > bottom || cx < left || cx > right { return }
         let n = min(count, bottom - cy + 1)
         if !fullWidth {
@@ -1165,7 +1165,7 @@ public final class Terminal {
 
     /// Erases part of the row: 0 from the cursor to the end, 1 from the
     /// start to the cursor, 2 all of it.
-    func eraseInLine(_ mode: int) {
+    func eraseInLine(mode: int) {
         let blank = eraseCell
         var from = 0
         var to = Columns
@@ -1183,7 +1183,7 @@ public final class Terminal {
 
     /// Erases part of the screen: 0 from the cursor on, 1 up to the
     /// cursor, 2 all of it, 3 the scrollback.
-    func eraseInDisplay(_ mode: int) {
+    func eraseInDisplay(mode: int) {
         switch mode {
         case 0:
             eraseInLine(0)
@@ -1215,7 +1215,7 @@ public final class Terminal {
         Version += 1
     }
 
-    func moveTo(_ x: int, _ y: int) {
+    func moveTo(x: int, y: int) {
         let minY = originMode ? top : 0
         let maxY = originMode ? bottom : Rows - 1
         let minX = originMode ? left : 0
@@ -1226,7 +1226,7 @@ public final class Terminal {
         Version += 1
     }
 
-    func tabForward(_ count: int) {
+    func tabForward(count: int) {
         var n = count
         let edge = rightEdge
         while n > 0 && cx < edge {
@@ -1238,7 +1238,7 @@ public final class Terminal {
         Version += 1
     }
 
-    func tabBackward(_ count: int) {
+    func tabBackward(count: int) {
         var n = count
         while n > 0 && cx > 0 {
             cx -= 1
@@ -1272,7 +1272,7 @@ public final class Terminal {
     /// Shows the alternate screen (or the main one again). With clear,
     /// the alternate screen starts blank; with cursor, the main screen's
     /// cursor is saved and restored around it (mode 1049).
-    func setAltScreen(_ on: bool, clear: bool, cursor: bool) {
+    func setAltScreen(on: bool, clear: bool, cursor: bool) {
         if on == AltScreen { return }
         if on {
             if cursor { saveCursor() }
@@ -1388,7 +1388,7 @@ public final class Terminal {
         Version += 1
     }
 
-    func respond(_ s: string) {
+    func respond(s: string) {
         responses.append(contentsOf: [uint8](s.utf8))
     }
 }
@@ -1396,19 +1396,19 @@ public final class Terminal {
 /// No color set: the theme's.
 let noColor: uint32 = 0xFFFFFFFF
 
-func rgbOf(_ v: uint32) -> (R: uint8, G: uint8, B: uint8) {
+func rgbOf(v: uint32) -> (R: uint8, G: uint8, B: uint8) {
     return (R: uint8((v >> 16) & 0xFF), G: uint8((v >> 8) & 0xFF), B: uint8(v & 0xFF))
 }
 
 /// Text for a case-insensitive search: its code points, folded.
-func foldText(_ s: string, _ caseSensitive: bool) -> [uint32] {
+func foldText(s: string, caseSensitive: bool) -> [uint32] {
     var out: [uint32] = []
     for u in s.unicodeScalars { out.append(caseSensitive ? uint32(u.value) : foldRune(uint32(u.value))) }
     return out
 }
 
 /// A code point as a case-insensitive search compares it.
-func foldRune(_ cp: uint32) -> uint32 {
+func foldRune(cp: uint32) -> uint32 {
     if cp < 0x80 { return cp >= 0x41 && cp <= 0x5A ? cp + 32 : cp }
     return unicode.CaseFold(cp)
 }

@@ -109,7 +109,7 @@ extension Controller {
 
     /// Whether a terminal tab is the one in front (not hidden behind the
     /// settings tab).
-    func IsFront(_ id: int) -> bool {
+    func IsFront(id: int) -> bool {
         return ws.Active == id && !ui.SettingsShown
     }
 
@@ -139,7 +139,7 @@ extension Controller {
     }
 
     /// A page's title.
-    func SettingsTitle(_ page: string) -> string {
+    func SettingsTitle(page: string) -> string {
         for p in SettingsPages + ProfilePages where p.ID == page { return p.ID == "profile:" ? "Defaults" : p.Title }
         return "Settings"
     }
@@ -175,7 +175,7 @@ extension Controller {
         return groups
     }
 
-    func groupsOf(_ page: string) -> [SettingGroup] {
+    func groupsOf(page: string) -> [SettingGroup] {
         switch page {
         case "startup": return startupGroups()
         case "interaction": return interactionGroups()
@@ -190,21 +190,21 @@ extension Controller {
 
     // MARK: - Rows
 
-    func toggle(_ title: string, _ detail: string, _ on: bool, _ key: string) -> SettingRow {
+    func toggle(title: string, detail: string, on: bool, key: string) -> SettingRow {
         return SettingRow(Title: title, Detail: detail, Kind: "toggle", On: on, Set: { v in self.setGlobal(key, .bool(v == "true")) })
     }
 
-    func choice(_ title: string, _ detail: string, _ value: string, _ options: [(string, string)], _ set: (string) -> void) -> SettingRow {
+    func choice(title: string, detail: string, value: string, options: [(string, string)], set: (string) -> void) -> SettingRow {
         var shown = value
         for (label, v) in options where v == value { shown = label }
         return SettingRow(Title: title, Detail: detail, Kind: "choice", Value: shown, Options: options, Set: set)
     }
 
-    func field(_ title: string, _ detail: string, _ value: string, _ set: (string) -> void) -> SettingRow {
+    func field(title: string, detail: string, value: string, set: (string) -> void) -> SettingRow {
         return SettingRow(Title: title, Detail: detail, Kind: "text", Value: value, Set: set)
     }
 
-    func number(_ title: string, _ detail: string, _ value: float64, step: float64 = 1, min: float64 = 0, max: float64 = 1_000_000, _ set: (string) -> void) -> SettingRow {
+    func number(title: string, detail: string, value: float64, step: float64 = 1, min: float64 = 0, max: float64 = 1_000_000, set: (string) -> void) -> SettingRow {
         return SettingRow(Title: title, Detail: detail, Kind: "number", Value: numberText(value), Step: step, Min: min, Max: max, Set: set)
     }
 
@@ -318,10 +318,10 @@ extension Controller {
     }
 
     /// A profile's page; guid "" is the defaults every profile starts from.
-    func profileGroups(_ guid: string) -> [SettingGroup] {
+    func profileGroups(guid: string) -> [SettingGroup] {
         let p = guid.isEmpty ? defaultsProfile() : settings.ProfileNamed(guid)
-        func set(_ path: [string], _ v: json.Value?) { self.setProfile(guid, path, v) }
-        func text(_ v: string) -> json.Value? { return v.isEmpty ? nil : .string(v) }
+        func set(path: [string], v: json.Value?) { self.setProfile(guid, path, v) }
+        func text(v: string) -> json.Value? { return v.isEmpty ? nil : .string(v) }
         var schemes: [(string, string)] = [("Default", "")]
         for n in settings.SchemeNames { schemes.append((n, n)) }
         var general: [SettingRow] = []
@@ -423,7 +423,7 @@ extension Controller {
     }
 
     /// Sets a global setting; nil removes it, for the default.
-    func setGlobal(_ key: string, _ value: json.Value?) {
+    func setGlobal(key: string, value: json.Value?) {
         guard let root = settingsJSON() else {
             toast("settings.json can't be read, so the change wasn't written")
             return
@@ -435,7 +435,7 @@ extension Controller {
 
     /// Sets a profile's setting (guid "" is profiles.defaults): a path
     /// into its object, as ["font", "size"].
-    func setProfile(_ guid: string, _ path: [string], _ value: json.Value?) {
+    func setProfile(guid: string, path: [string], value: json.Value?) {
         guard let root = settingsJSON() else {
             toast("settings.json can't be read, so the change wasn't written")
             return
@@ -485,7 +485,7 @@ extension Controller {
     }
 
     /// Writes the document as settings.json and takes its settings now.
-    func writeSettings(_ root: json.Value) {
+    func writeSettings(root: json.Value) {
         let text = "// Settings for Vertex Terminal, in Windows Terminal's format, as the\n// settings tab writes them. Changes apply as soon as the file is saved.\n" + json.Encode(root, indent: "    ") + "\n"
         if fixedSettings {
             settingsText = text
@@ -507,7 +507,7 @@ extension Controller {
     // MARK: - Controls
 
     /// A choice's options, as a menu under the pointer.
-    func openChoice(_ row: SettingRow, x: float32, y: float32) {
+    func openChoice(row: SettingRow, x: float32, y: float32) {
         var items: [(string, string, () -> void)] = []
         for (label, v) in row.Options {
             items.append((label, label == row.Value ? "✓" : "", { row.Set(v) }))
@@ -516,13 +516,13 @@ extension Controller {
     }
 
     /// A number one step up or down, within its bounds.
-    func stepNumber(_ row: SettingRow, _ dir: float64) {
+    func stepNumber(row: SettingRow, dir: float64) {
         let v = (float64(row.Value) ?? row.Min) + dir * row.Step
         row.Set(numberText(min(row.Max, max(row.Min, v))))
     }
 
     /// A number typed: kept within its bounds, or left as it was.
-    func typedNumber(_ row: SettingRow, _ text: string) {
+    func typedNumber(row: SettingRow, text: string) {
         guard let v = float64(trimmed(text)) else {
             ui.SettingsRev += 1
             return
@@ -533,7 +533,7 @@ extension Controller {
 
     /// Keys pressed on the settings page: ⌘ shortcuts run their actions,
     /// as on a terminal.
-    func SettingsKey(_ e: dom.KeyboardEvent) {
+    func SettingsKey(e: dom.KeyboardEvent) {
         if e.Key == "Escape" && !ui.Overlay {
             ShowTerminal()
             return
@@ -551,7 +551,7 @@ extension Controller {
 
 /// A number as settings.json and the page write it: no ".0" for a whole
 /// one, two places at most.
-func numberText(_ v: float64) -> string {
+func numberText(v: float64) -> string {
     if v == float64(int64(v)) { return "\(int64(v))" }
     let r = float64(int64((v * 100).rounded())) / 100
     return "\(r)"
@@ -559,7 +559,7 @@ func numberText(_ v: float64) -> string {
 
 /// v with the member at path[i...] set (nil removes it), objects made as
 /// they're needed.
-func setIn(_ v: json.Value, _ path: [string], _ i: int, _ value: json.Value?) -> json.Value {
+func setIn(v: json.Value, path: [string], i: int, value: json.Value?) -> json.Value {
     var o = v.Object ?? json.Object()
     let k = path[i]
     if i == path.count - 1 {

@@ -64,15 +64,15 @@ public struct Theme {
 }
 
 /// A color from 0xRRGGBB.
-public func hex(_ v: uint32) -> draw.Color {
+public func hex(v: uint32) -> draw.Color {
     return draw.Color(uint8((v >> 16) & 0xFF), uint8((v >> 8) & 0xFF), uint8(v & 0xFF))
 }
 
 /// A color from "#RRGGBB" or "#RGB"; nil for anything else.
-public func ParseColor(_ s: string) -> draw.Color? {
+public func ParseColor(s: string) -> draw.Color? {
     let b = [uint8](s.utf8)
     if b.isEmpty || b[0] != 0x23 { return nil }
-    func h(_ c: uint8) -> uint32? {
+    func h(c: uint8) -> uint32? {
         if c >= 0x30 && c <= 0x39 { return uint32(c - 0x30) }
         if c >= 0x61 && c <= 0x66 { return uint32(c - 0x61 + 10) }
         if c >= 0x41 && c <= 0x46 { return uint32(c - 0x41 + 10) }
@@ -97,15 +97,15 @@ public func ParseColor(_ s: string) -> draw.Color? {
 }
 
 /// "#RRGGBB" for a color.
-public func ColorHex(_ c: draw.Color) -> string {
+public func ColorHex(c: draw.Color) -> string {
     let digits: [string] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"]
-    func two(_ v: uint8) -> string { return digits[int(v >> 4)] + digits[int(v & 15)] }
+    func two(v: uint8) -> string { return digits[int(v >> 4)] + digits[int(v & 15)] }
     return "#" + two(c.R) + two(c.G) + two(c.B)
 }
 
 /// a and b mixed: t of b, the rest a.
-func mix(_ a: draw.Color, _ b: draw.Color, _ t: float32) -> draw.Color {
-    func m(_ x: uint8, _ y: uint8) -> uint8 {
+func mix(a: draw.Color, b: draw.Color, t: float32) -> draw.Color {
+    func m(x: uint8, y: uint8) -> uint8 {
         return uint8(float32(x) * (1 - t) + float32(y) * t + 0.5)
     }
     return draw.Color(m(a.R, b.R), m(a.G, b.G), m(a.B, b.B), 255)
@@ -113,13 +113,13 @@ func mix(_ a: draw.Color, _ b: draw.Color, _ t: float32) -> draw.Color {
 
 /// Relative luminance, 0 black to 1 white (WCAG's, without the gamma
 /// curve: close enough to tell light from dark).
-func luminance(_ c: draw.Color) -> float32 {
+func luminance(c: draw.Color) -> float32 {
     return (0.2126 * float32(c.R) + 0.7152 * float32(c.G) + 0.0722 * float32(c.B)) / 255
 }
 
 /// fg moved away from bg where the two are too close to tell apart
 /// (Windows Terminal's adjustIndistinguishableColors).
-func distinguishable(_ fg: draw.Color, from bg: draw.Color) -> draw.Color {
+func distinguishable(fg: draw.Color, from bg: draw.Color) -> draw.Color {
     let lf = luminance(fg)
     let lb = luminance(bg)
     if abs(lf - lb) >= 0.12 { return fg }

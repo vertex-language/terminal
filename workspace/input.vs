@@ -11,7 +11,7 @@ import (
 extension Controller {
     // MARK: - Keys
 
-    func KeyDown(_ e: dom.KeyboardEvent) {
+    func KeyDown(e: dom.KeyboardEvent) {
         lastKeyControl = e.Control
         guard let pane = currentPane else { return }
         let shell = pane.shell
@@ -54,12 +54,12 @@ extension Controller {
         }
     }
 
-    func KeyUp(_ e: dom.KeyboardEvent) {
+    func KeyUp(e: dom.KeyboardEvent) {
         lastKeyControl = e.Control
         if e.Key == "Control" { SwitcherRelease() }
     }
 
-    func BeforeInput(_ e: dom.InputEvent) {
+    func BeforeInput(e: dom.InputEvent) {
         if swallowText {
             swallowText = false
             return
@@ -71,7 +71,7 @@ extension Controller {
     /// Sends what the user typed: the view goes back to the screen, the
     /// selection goes, and the cursor shows. Broadcast sends it to every
     /// pane of the tab; a read-only pane takes nothing.
-    func typed(_ pane: Pane, _ bytes: [uint8]) {
+    func typed(pane: Pane, bytes: [uint8]) {
         if pane.ReadOnly {
             toast("This pane is read-only (\(settings.KeysFor("Terminal.ToggleReadOnlyMode").isEmpty ? "command palette: Toggle pane read-only mode" : settings.KeysFor("Terminal.ToggleReadOnlyMode")))")
             return
@@ -95,7 +95,7 @@ extension Controller {
     /// A paste: warned about where it is long or has several lines (and
     /// the program didn't ask for bracketed paste), trimmed of trailing
     /// space where it is one line.
-    func paste(_ pane: Pane, _ textIn: string) {
+    func paste(pane: Pane, textIn: string) {
         var text = textIn
         if text.isEmpty { return }
         if settings.TrimPaste && !text.contains("\n") { text = trimmed(text) }
@@ -112,7 +112,7 @@ extension Controller {
         typed(pane, pane.shell.term.EncodePaste(text))
     }
 
-    func copySelection(_ shell: Shell) {
+    func copySelection(shell: Shell) {
         guard let s = shell.selection, !s.IsEmpty else { return }
         let text = selectionText(shell, s)
         if !text.isEmpty { window.SetClipboardText(text) }
@@ -120,7 +120,7 @@ extension Controller {
 
     /// A selection's text; a block selection row by row, trimmed where
     /// the settings ask.
-    func selectionText(_ shell: Shell, _ selIn: view.Selection) -> string {
+    func selectionText(shell: Shell, selIn: view.Selection) -> string {
         let s = selIn.Ordered
         let t = shell.term
         if s.Block {
@@ -135,7 +135,7 @@ extension Controller {
         return t.Text(fromColumn: s.StartColumn, line: s.StartLine, toColumn: s.EndColumn, line: s.EndLine)
     }
 
-    func Focus(_ on: bool) {
+    func Focus(on: bool) {
         focused = on
         blinkOn = true
         if on, let tab = ws.Current { tab.Bell = false }
@@ -167,7 +167,7 @@ extension Controller {
     }
 
     /// A key in mark mode; true where it was mark mode's.
-    func markKey(_ e: dom.KeyboardEvent) -> bool {
+    func markKey(e: dom.KeyboardEvent) -> bool {
         guard let s = current else { return false }
         let t = s.term
         let last = t.ScrollbackCount + t.Rows - 1
@@ -236,13 +236,13 @@ extension Controller {
     // MARK: - The pointer
 
     /// The point in device pixels in the surface.
-    func devicePoint(_ x: float32, _ y: float32) -> (int, int) {
+    func devicePoint(x: float32, y: float32) -> (int, int) {
         let o = handle?.Origin ?? (X: 0, Y: 0)
         return (int((x - o.X) * scale), int((y - o.Y) * scale))
     }
 
     /// The pane under a point (CSS pixels in the window).
-    func paneAt(_ x: float32, _ y: float32) -> Pane? {
+    func paneAt(x: float32, y: float32) -> Pane? {
         guard let tab = ws.Current else { return nil }
         let (px, py) = devicePoint(x, y)
         if tab.Zoomed != 0 { return tab.root.Find(tab.Zoomed)?.pane }
@@ -251,7 +251,7 @@ extension Controller {
     }
 
     /// The divider under a point, for dragging.
-    func dividerAt(_ x: float32, _ y: float32) -> PaneNode? {
+    func dividerAt(x: float32, y: float32) -> PaneNode? {
         guard let tab = ws.Current, tab.Zoomed == 0 else { return nil }
         let (px, py) = devicePoint(x, y)
         let slop = int(4 * scale)
@@ -266,7 +266,7 @@ extension Controller {
     }
 
     /// The cell under a point in a pane.
-    func cellAt(_ pane: Pane, _ x: float32, _ y: float32) -> (Column: int, Row: int, Right: bool) {
+    func cellAt(pane: Pane, x: float32, y: float32) -> (Column: int, Row: int, Right: bool) {
         let o = handle?.Origin ?? (X: 0, Y: 0)
         let t = pane.shell.term
         let lx = x - o.X - float32(pane.X) / scale
@@ -274,16 +274,16 @@ extension Controller {
         return pane.renderer.CellAt(x: lx, y: ly, scale: scale, columns: t.Columns, rows: t.Rows)
     }
 
-    func localPoint(_ pane: Pane, _ x: float32, _ y: float32) -> (float32, float32) {
+    func localPoint(pane: Pane, x: float32, y: float32) -> (float32, float32) {
         let o = handle?.Origin ?? (X: 0, Y: 0)
         return (x - o.X - float32(pane.X) / scale, y - o.Y - float32(pane.Y) / scale)
     }
 
-    func mods(_ e: dom.MouseEvent) -> vt.Modifiers {
+    func mods(e: dom.MouseEvent) -> vt.Modifiers {
         return vt.Modifiers(shift: e.Shift, alt: e.Alt, control: e.Control, meta: e.Meta)
     }
 
-    func PointerDown(_ e: dom.PointerEvent) {
+    func PointerDown(e: dom.PointerEvent) {
         e.PreventDefault()
         focusSurface()
         if ui.Menu { closeMenu() }
@@ -372,7 +372,7 @@ extension Controller {
         redraw()
     }
 
-    func PointerMove(_ e: dom.PointerEvent) {
+    func PointerMove(e: dom.PointerEvent) {
         pointerX = e.X
         pointerY = e.Y
         if let d = draggingDivider {
@@ -440,7 +440,7 @@ extension Controller {
         redraw()
     }
 
-    func PointerUp(_ e: dom.PointerEvent) {
+    func PointerUp(e: dom.PointerEvent) {
         if draggingDivider != nil || draggingScrollbar != 0 {
             draggingDivider = nil
             draggingScrollbar = 0
@@ -465,7 +465,7 @@ extension Controller {
 
     /// The link under the pointer: an OSC 8 hyperlink's cells, or (with
     /// ⌘ held, as Windows Terminal's Ctrl) a URL found in the text.
-    func updateHover(_ pane: Pane, _ e: dom.PointerEvent) {
+    func updateHover(pane: Pane, e: dom.PointerEvent) {
         let cell = cellAt(pane, e.X, e.Y)
         let t = pane.shell.term
         let line = t.ViewTop + cell.Row
@@ -493,7 +493,7 @@ extension Controller {
     }
 
     /// What ⌘-click at a cell opens: its hyperlink, or a URL in the text.
-    func linkAt(_ pane: Pane, _ col: int, _ row: int) -> string? {
+    func linkAt(pane: Pane, col: int, row: int) -> string? {
         let t = pane.shell.term
         let line = t.ViewTop + row
         let cells = t.Absolute(line).Cells
@@ -502,7 +502,7 @@ extension Controller {
         return nil
     }
 
-    func Wheel(_ e: dom.WheelEvent) {
+    func Wheel(e: dom.WheelEvent) {
         e.PreventDefault()
         guard let pane = paneAt(e.X, e.Y) ?? currentPane else { return }
         let shell = pane.shell
@@ -561,11 +561,11 @@ extension Controller {
 
 /// The word around a cell: the run of characters that aren't spaces or
 /// the settings' word delimiters.
-func wordAt(_ term: vt.Terminal, _ col: int, _ line: int, _ delimiters: string = " ") -> (int, int) {
+func wordAt(term: vt.Terminal, col: int, line: int, delimiters: string = " ") -> (int, int) {
     let cells = term.Absolute(line).Cells
     var stops: [uint32] = []
     for u in delimiters.unicodeScalars { stops.append(uint32(u.value)) }
-    func isWord(_ i: int) -> bool {
+    func isWord(i: int) -> bool {
         let r = cells[i].Rune
         if r == 0 || r == 32 { return false }
         if cells[i].Has(vt.Attr.spacer) { return true }
@@ -582,7 +582,7 @@ func wordAt(_ term: vt.Terminal, _ col: int, _ line: int, _ delimiters: string =
 /// A URL in a line's text around a column: its first and last column,
 /// and the URL. http, https, file, ftp and mailto, as Windows Terminal
 /// finds them.
-func urlAt(_ term: vt.Terminal, _ col: int, _ line: int) -> (int, int, string)? {
+func urlAt(term: vt.Terminal, col: int, line: int) -> (int, int, string)? {
     let cells = term.Absolute(line).Cells
     var chars: [uint8] = []
     var cols: [int] = []
@@ -630,13 +630,13 @@ func urlAt(_ term: vt.Terminal, _ col: int, _ line: int) -> (int, int, string)? 
     return nil
 }
 
-func isURLChar(_ c: uint8) -> bool {
+func isURLChar(c: uint8) -> bool {
     if c <= 0x20 || c >= 0x7F { return false }
     return ![uint8]("\"<>^`{|}".utf8).contains(c)
 }
 
 /// s without spaces at its end.
-func trimRight(_ s: string) -> string {
+func trimRight(s: string) -> string {
     var b = [uint8](s.utf8)
     while let l = b.last, l == 0x20 || l == 0x09 { b.removeLast() }
     return string(decoding: b, as: UTF8.self)

@@ -40,7 +40,7 @@ final class Pane {
     /// Where its program is, or will start.
     var Directory: string? { return pending ? pendingDir : shell.Directory }
 
-    func Contains(_ x: int, _ y: int) -> bool {
+    func Contains(x: int, y: int) -> bool {
         return x >= X && x < X + W && y >= Y && y < Y + H
     }
 }
@@ -91,7 +91,7 @@ final class PaneNode {
     }
 
     /// The leaf node holding a pane.
-    func Find(_ id: int) -> PaneNode? {
+    func Find(id: int) -> PaneNode? {
         if let p = pane { return p.ID == id ? self : nil }
         if let n = first?.Find(id) { return n }
         return second?.Find(id)
@@ -108,7 +108,7 @@ final class PaneNode {
 
     /// Lays its panes out in x, y, w × h, a divider of d pixels between
     /// two.
-    func Layout(_ x: int, _ y: int, _ w: int, _ h: int, divider d: int) {
+    func Layout(x: int, y: int, w: int, h: int, divider d: int) {
         if let p = pane {
             p.X = x
             p.Y = y
@@ -185,7 +185,7 @@ final class Tab {
     }
 
     /// Gives a pane focus, remembering the order.
-    func Focus(_ id: int) {
+    func Focus(id: int) {
         Focused = id
         recent = [id] + recent.filter { $0 != id }
         ReadOnly = FocusedPane?.ReadOnly ?? false
@@ -193,7 +193,7 @@ final class Tab {
 
     /// Splits the focused pane: the new one goes right, left, down or up
     /// of it, taking size of the space.
-    func Split(_ pane: Pane, direction: string, size: float32 = 0.5) {
+    func Split(pane: Pane, direction: string, size: float32 = 0.5) {
         guard let node = root.Find(Focused), let old = node.pane else { return }
         let a = PaneNode(pane: old)
         let b = PaneNode(pane: pane)
@@ -214,7 +214,7 @@ final class Tab {
 
     /// Takes a pane out of the layout; its sibling takes its place. False
     /// where it was the last.
-    func Remove(_ id: int) -> bool {
+    func Remove(id: int) -> bool {
         guard let node = root.Find(id) else { return false }
         recent = recent.filter { $0 != id }
         guard let parent = node.parent else { return false }
@@ -238,7 +238,7 @@ final class Tab {
 
     /// The pane next to the focused one in a direction: the one whose
     /// edge touches it and that overlaps it most.
-    func Neighbor(_ direction: string) -> Pane? {
+    func Neighbor(direction: string) -> Pane? {
         guard let me = FocusedPane else { return nil }
         let all = Panes
         switch direction {
@@ -292,7 +292,7 @@ final class Tab {
 
     /// Moves the divider nearest the focused pane that runs across the
     /// direction, by amount of its space.
-    func Resize(_ direction: string, amount: float32 = 0.05) {
+    func Resize(direction: string, amount: float32 = 0.05) {
         let wantVertical = direction == "left" || direction == "right"
         var node = root.Find(Focused)
         while let n = node {
@@ -307,7 +307,7 @@ final class Tab {
     }
 
     /// Swaps the focused pane with its neighbor; focus stays with it.
-    func Swap(_ direction: string) {
+    func Swap(direction: string) {
         guard let other = Neighbor(direction), let a = root.Find(Focused), let b = root.Find(other.ID) else { return }
         let pa = a.pane
         a.pane = b.pane
@@ -370,7 +370,7 @@ final class Workspace {
         return nil
     }
 
-    func PaneByID(_ id: int) -> Pane? {
+    func PaneByID(id: int) -> Pane? {
         for t in Tabs {
             if let n = t.root.Find(id) { return n.pane }
         }

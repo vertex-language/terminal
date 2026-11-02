@@ -11,7 +11,7 @@ import (
 // text it showed (drawn again, plain, before its shell starts).
 
 /// Where the layout is kept: beside settings.json.
-func sessionPath(_ settingsFile: string) -> string {
+func sessionPath(settingsFile: string) -> string {
     return parentDir(settingsFile) + "/state.json"
 }
 
@@ -34,7 +34,7 @@ extension Controller {
         try? fs.WriteText(fs.Path(sessionPath(settingsFile)), json.Encode(.object(root), indent: "  "), atomic: true)
     }
 
-    func nodeJSON(_ n: PaneNode) -> json.Value {
+    func nodeJSON(n: PaneNode) -> json.Value {
         var o = json.Object()
         if let p = n.pane {
             o["profile"] = .string(p.profile.Guid)
@@ -88,7 +88,7 @@ extension Controller {
         return true
     }
 
-    func buildNode(_ v: json.Value, _ starts: inout [(Pane, string?)]) -> PaneNode? {
+    func buildNode(v: json.Value, starts: inout [(Pane, string?)]) -> PaneNode? {
         if let split = v["split"]?.String {
             guard let fv = v["first"], let sv = v["second"], let f = buildNode(fv, &starts), let s = buildNode(sv, &starts) else { return nil }
             let ratio = float32(v["ratio"]?.Double ?? 0.5)

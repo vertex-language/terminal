@@ -24,7 +24,7 @@ enum pstate {
 extension Terminal {
     /// Takes bytes the program wrote: text and escape sequences, in any
     /// pieces (a sequence or a UTF-8 character may be split across calls).
-    public func Feed(_ bytes: [uint8]) {
+    public func Feed(bytes: [uint8]) {
         let n = bytes.count
         var i = 0
         while i < n {
@@ -41,11 +41,11 @@ extension Terminal {
     }
 
     /// Feeds text, as UTF-8.
-    public func Feed(_ text: string) {
+    public func Feed(text: string) {
         Feed([uint8](text.utf8))
     }
 
-    func step(_ b: uint8) {
+    func step(b: uint8) {
         // Bytes that mean the same in every state but a string's.
         if state != .oscString && state != .ignoredString && state != .dcsString {
             if b == 0x18 || b == 0x1A {  // CAN, SUB: the sequence is abandoned
@@ -118,7 +118,7 @@ extension Terminal {
         intermediates = []
     }
 
-    func ground(_ b: uint8) {
+    func ground(b: uint8) {
         if utf8Need > 0 {
             if b & 0xC0 == 0x80 {
                 utf8Code = (utf8Code << 6) | uint32(b & 0x3F)
@@ -150,7 +150,7 @@ extension Terminal {
     }
 
     /// The C0 controls.
-    func control(_ b: uint8) {
+    func control(b: uint8) {
         switch b {
         case 0x05:  // ENQ: the answerback message
             if !Answerback.isEmpty { respond(Answerback) }
@@ -185,7 +185,7 @@ extension Terminal {
         }
     }
 
-    func escape(_ b: uint8) {
+    func escape(b: uint8) {
         if b < 0x20 {
             control(b)
             return
@@ -227,7 +227,7 @@ extension Terminal {
         }
     }
 
-    func escDispatch(_ b: uint8) {
+    func escDispatch(b: uint8) {
         if !intermediates.isEmpty {
             let i = intermediates[0]
             if i == 0x28 || i == 0x29 || i == 0x2A || i == 0x2B {  // ( ) * + designate G0-G3
@@ -290,7 +290,7 @@ extension Terminal {
 
     // MARK: - OSC
 
-    func oscByte(_ b: uint8) {
+    func oscByte(b: uint8) {
         if stringEsc {
             stringEsc = false
             if b == 0x5C {
@@ -439,7 +439,7 @@ extension Terminal {
 
     /// OSC 9: ConEmu's progress (4;state;percent) and working directory
     /// (9;path), or else a notification of the text (iTerm2's growl).
-    func osc9(_ text: string) {
+    func osc9(text: string) {
         let parts = text.split(separator: ";", omittingEmptySubsequences: false).map { String($0) }
         if parts.count >= 1 && parts[0] == "4" {
             let st = parts.count > 1 ? (int(parts[1]) ?? 0) : 0
@@ -467,7 +467,7 @@ extension Terminal {
         notifications.append(Notification(Title: "", Body: text))
     }
 
-    func shellMark(_ text: string) {
+    func shellMark(text: string) {
         let b = [uint8](text.utf8)
         if b.isEmpty { return }
         switch b[0] {
@@ -505,7 +505,7 @@ extension Terminal {
 
     // MARK: - DCS
 
-    func dcsEntryByte(_ b: uint8) {
+    func dcsEntryByte(b: uint8) {
         if b < 0x20 { return }
         if b >= 0x30 && b <= 0x39 {
             param = (param < 0 ? 0 : param) * 10 + int(b - 0x30)
@@ -533,7 +533,7 @@ extension Terminal {
         }
     }
 
-    func dcsByte(_ b: uint8) {
+    func dcsByte(b: uint8) {
         if stringEsc {
             stringEsc = false
             if b == 0x5C {
@@ -567,7 +567,7 @@ extension Terminal {
     }
 
     /// DECRQSS: what a setting is, as the sequence that would set it.
-    func requestSetting(_ what: string) {
+    func requestSetting(what: string) {
         var answer: string? = nil
         switch what {
         case "m": answer = sgrString() + "m"
@@ -613,7 +613,7 @@ extension Terminal {
         if a & Attr.dottedUnderline != 0 { p.append("4:4") }
         if a & Attr.dashedUnderline != 0 { p.append("4:5") }
         if a & Attr.overline != 0 { p.append("53") }
-        func color(_ c: Color, _ base: int, _ ext: int) {
+        func color(c: Color, base: int, ext: int) {
             if c.IsDefault { return }
             if c.IsRGB {
                 p.append("\(ext):2::\(c.R):\(c.G):\(c.B)")
@@ -633,7 +633,7 @@ extension Terminal {
 
     // MARK: - CSI
 
-    func csiByte(_ b: uint8) {
+    func csiByte(b: uint8) {
         if b < 0x20 {
             control(b)
             return
@@ -671,7 +671,7 @@ extension Terminal {
         }
     }
 
-    func csiFinish(_ final: uint8) {
+    func csiFinish(final: uint8) {
         params.append(param)
         colons.append(nextColon)
         nextColon = false
@@ -681,18 +681,18 @@ extension Terminal {
 }
 
 /// "rgb:RRRR/GGGG/BBBB", as xterm answers a color query.
-func rgbSpec(_ c: (R: uint8, G: uint8, B: uint8)) -> string {
+func rgbSpec(c: (R: uint8, G: uint8, B: uint8)) -> string {
     return "rgb:\(hex2(c.R))\(hex2(c.R))/\(hex2(c.G))\(hex2(c.G))/\(hex2(c.B))\(hex2(c.B))"
 }
 
-func hex2(_ v: uint8) -> string {
+func hex2(v: uint8) -> string {
     let digits: [string] = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"]
     return digits[int(v >> 4)] + digits[int(v & 15)]
 }
 
 /// The path of a file:// URL (OSC 7's "file://host/path"), percent
 /// escapes decoded; nil for anything else.
-func pathOfFileURL(_ url: string) -> string? {
+func pathOfFileURL(url: string) -> string? {
     let b = [uint8](url.utf8)
     let prefix = [uint8]("file://".utf8)
     if b.count < prefix.count { return nil }
@@ -715,9 +715,9 @@ func pathOfFileURL(_ url: string) -> string? {
 
 /// A color as X11 writes it: "rgb:R/G/B" (1-4 hex digits each), "#RGB",
 /// "#RRGGBB", or a few names.
-func parseColorSpec(_ spec: string) -> uint32? {
+func parseColorSpec(spec: string) -> uint32? {
     let b = [uint8](spec.utf8)
-    func hexRun(_ from: int, _ to: int) -> uint32? {
+    func hexRun(from: int, to: int) -> uint32? {
         if to <= from || to - from > 4 { return nil }
         var v: uint32 = 0
         for i in from..<to {
@@ -767,7 +767,7 @@ func parseColorSpec(_ spec: string) -> uint32? {
     }
 }
 
-func hexValue(_ c: uint8) -> int? {
+func hexValue(c: uint8) -> int? {
     if c >= 0x30 && c <= 0x39 { return int(c - 0x30) }
     if c >= 0x61 && c <= 0x66 { return int(c - 0x61 + 10) }
     if c >= 0x41 && c <= 0x46 { return int(c - 0x41 + 10) }

@@ -23,14 +23,14 @@ let boxLines: [string] = [
 ]
 
 /// Whether a code point is drawn here rather than from the font.
-func isDrawnShape(_ cp: uint32) -> bool {
+func isDrawnShape(cp: uint32) -> bool {
     if cp >= 0x2500 && cp <= 0x257F { return !boxLines[int(cp - 0x2500)].isEmpty }
     return cp >= 0x2580 && cp <= 0x259F
 }
 
 /// Draws a box or block character into the cell at (x, y), w × h device
 /// pixels, in color.
-func drawShape(_ c: draw.Canvas, _ cp: uint32, _ x: int32, _ y: int32, _ w: int32, _ h: int32, _ color: draw.Color, scale: float32) {
+func drawShape(c: draw.Canvas, cp: uint32, x: int32, y: int32, w: int32, h: int32, color: draw.Color, scale: float32) {
     if cp >= 0x2580 {
         drawBlock(c, cp, x, y, w, h, color)
         return
@@ -41,12 +41,12 @@ func drawShape(_ c: draw.Canvas, _ cp: uint32, _ x: int32, _ y: int32, _ w: int3
     let cx = x + w / 2
     let cy = y + h / 2
     let up = int(spec[0] - 0x30), right = int(spec[1] - 0x30), down = int(spec[2] - 0x30), left = int(spec[3] - 0x30)
-    func thick(_ k: int) -> int32 { return k == 2 ? heavy : light }
+    func thick(k: int) -> int32 { return k == 2 ? heavy : light }
     // How far a horizontal line reaches past the centre to meet the
     // vertical one, and the other way.
     let vReach = max(thick(up), thick(down)) / 2 + 1
     let hReach = max(thick(left), thick(right)) / 2 + 1
-    func hline(_ x0: int32, _ x1: int32, _ k: int) {
+    func hline(x0: int32, x1: int32, k: int) {
         if k == 3 {
             c.Fill(draw.IRect(x0, cy - light - light / 2 - 0, x1 - x0, light), color)
             c.Fill(draw.IRect(x0, cy + light - light / 2, x1 - x0, light), color)
@@ -55,7 +55,7 @@ func drawShape(_ c: draw.Canvas, _ cp: uint32, _ x: int32, _ y: int32, _ w: int3
             c.Fill(draw.IRect(x0, cy - t / 2, x1 - x0, t), color)
         }
     }
-    func vline(_ y0: int32, _ y1: int32, _ k: int) {
+    func vline(y0: int32, y1: int32, k: int) {
         if k == 3 {
             c.Fill(draw.IRect(cx - light - light / 2, y0, light, y1 - y0), color)
             c.Fill(draw.IRect(cx + light - light / 2, y0, light, y1 - y0), color)
@@ -70,9 +70,9 @@ func drawShape(_ c: draw.Canvas, _ cp: uint32, _ x: int32, _ y: int32, _ w: int3
     if down > 0 { vline(cy - (left > 0 || right > 0 ? hReach - 1 : 0), y + h, down) }
 }
 
-func drawBlock(_ c: draw.Canvas, _ cp: uint32, _ x: int32, _ y: int32, _ w: int32, _ h: int32, _ color: draw.Color) {
-    func eighthsH(_ n: int32) -> int32 { return (h * n + 4) / 8 }
-    func eighthsW(_ n: int32) -> int32 { return (w * n + 4) / 8 }
+func drawBlock(c: draw.Canvas, cp: uint32, x: int32, y: int32, w: int32, h: int32, color: draw.Color) {
+    func eighthsH(n: int32) -> int32 { return (h * n + 4) / 8 }
+    func eighthsW(n: int32) -> int32 { return (w * n + 4) / 8 }
     let hw = w / 2, hh = h / 2
     switch cp {
     case 0x2580: c.Fill(draw.IRect(x, y, w, hh), color)

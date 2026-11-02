@@ -46,7 +46,7 @@ let builtinSchemes: [view.Theme] = [
 
 /// A scheme as Windows Terminal writes one: the selection is drawn
 /// translucent over the background, as it draws it.
-func scheme(_ name: string, fg: draw.Color, bg: draw.Color, cursor: draw.Color, selection: draw.Color, ansi: [draw.Color]) -> view.Theme {
+func scheme(name: string, fg: draw.Color, bg: draw.Color, cursor: draw.Color, selection: draw.Color, ansi: [draw.Color]) -> view.Theme {
     let dark = (0.2126 * float32(bg.R) + 0.7152 * float32(bg.G) + 0.0722 * float32(bg.B)) / 255 < 0.5
     return view.Theme(name: name, foreground: fg, background: bg, cursor: cursor, cursorText: bg,
                       selection: blend(bg, selection, 0.35), ansi: ansi,
@@ -55,7 +55,7 @@ func scheme(_ name: string, fg: draw.Color, bg: draw.Color, cursor: draw.Color, 
 }
 
 /// a and b mixed: t of b.
-func blend(_ a: draw.Color, _ b: draw.Color, _ t: float32) -> draw.Color {
-    func m(_ x: uint8, _ y: uint8) -> uint8 { return uint8(float32(x) * (1 - t) + float32(y) * t + 0.5) }
+func blend(a: draw.Color, b: draw.Color, t: float32) -> draw.Color {
+    func m(x: uint8, y: uint8) -> uint8 { return uint8(float32(x) * (1 - t) + float32(y) * t + 0.5) }
     return draw.Color(m(a.R, b.R), m(a.G, b.G), m(a.B, b.B))
 }

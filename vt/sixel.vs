@@ -27,7 +27,7 @@ let sixelDefaults: [uint32] = [
 
 extension Terminal {
     /// The absolute line (as `Absolute` numbers them) of an image's top.
-    public func ImageLine(_ img: Image) -> int {
+    public func ImageLine(img: Image) -> int {
         return img.row - dropped
     }
 
@@ -64,7 +64,7 @@ extension Terminal {
     /// Decodes a sixel image (the DCS's parameters, then its data after
     /// the q) and places it at the cursor; the cursor goes to the line
     /// below it, as xterm's sixel scrolling has it.
-    func sixel(_ params: [int], _ data: [uint8]) {
+    func sixel(params: [int], data: [uint8]) {
         // P2: 1 leaves unset pixels clear; otherwise they are color 0.
         let clearBackground = params.count > 1 && params[1] == 1
         var palette = [uint32](repeating: 0, count: 256)
@@ -80,7 +80,7 @@ extension Terminal {
         var stride = 0
         var x = 0
         var band = 0
-        func grow(_ w: int, _ h: int) {
+        func grow(w: int, h: int) {
             let nw = min(maxW, max(stride, w))
             let nh = min(maxH, max(pix.count / max(1, stride), h))
             if nw == stride && nh * stride == pix.count { return }
@@ -92,7 +92,7 @@ extension Terminal {
             pix = next
             stride = nw
         }
-        func draw(_ bits: int, _ count: int) {
+        func draw(bits: int, count: int) {
             if bits == 0 {
                 x += count
                 width = max(width, min(maxW, x))
@@ -240,7 +240,7 @@ extension Terminal {
 
 /// Sixel's HLS (hue 0-360 from blue, lightness and saturation 0-100) as
 /// RGB 0-255.
-func hlsToRGB(_ hIn: int, _ lIn: int, _ sIn: int) -> (uint32, uint32, uint32) {
+func hlsToRGB(hIn: int, lIn: int, sIn: int) -> (uint32, uint32, uint32) {
     // Sixel's hue starts at blue; the usual formula's, at red.
     let h = float32((hIn + 240) % 360) / 360
     let l = float32(max(0, min(100, lIn))) / 100
@@ -251,7 +251,7 @@ func hlsToRGB(_ hIn: int, _ lIn: int, _ sIn: int) -> (uint32, uint32, uint32) {
     }
     let q = l < 0.5 ? l * (1 + s) : l + s - l * s
     let p = 2 * l - q
-    func hue(_ tIn: float32) -> float32 {
+    func hue(tIn: float32) -> float32 {
         var t = tIn
         if t < 0 { t += 1 }
         if t > 1 { t -= 1 }

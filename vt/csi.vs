@@ -3,19 +3,19 @@ package vt
 extension Terminal {
     /// Parameter i, or def where it is missing or 0 (most sequences treat
     /// 0 as 1).
-    func arg(_ i: int, _ def: int) -> int {
+    func arg(i: int, def: int) -> int {
         if i >= params.count { return def }
         let v = params[i]
         return v <= 0 ? def : v
     }
 
     /// Parameter i as given: 0 where missing.
-    func raw(_ i: int) -> int {
+    func raw(i: int) -> int {
         if i >= params.count || params[i] < 0 { return 0 }
         return params[i]
     }
 
-    func csiDispatch(_ final: uint8) {
+    func csiDispatch(final: uint8) {
         let inter: uint8 = intermediates.isEmpty ? 0 : intermediates[0]
         if privateMarker == 0x3F {  // ?
             switch final {
@@ -209,7 +209,7 @@ extension Terminal {
 
     // MARK: - Cursor style, keyboard flags
 
-    func cursorStyle(_ s: int) {
+    func cursorStyle(s: int) {
         switch s {
         case 0, 1: Shape = .block; CursorBlink = true
         case 2: Shape = .block; CursorBlink = false
@@ -223,28 +223,28 @@ extension Terminal {
         Version += 1
     }
 
-    func setKitty(_ f: int) {
+    func setKitty(f: int) {
         if !KittyKeyboard { return }
         let v = f & 31
         if kittyStack.isEmpty { kittyStack.append(v) } else { kittyStack[kittyStack.count - 1] = v }
         KittyFlags = v
     }
 
-    func pushKitty(_ f: int) {
+    func pushKitty(f: int) {
         if !KittyKeyboard { return }
         if kittyStack.count >= 16 { kittyStack.removeFirst() }
         kittyStack.append(f & 31)
         KittyFlags = f & 31
     }
 
-    func popKitty(_ n: int) {
+    func popKitty(n: int) {
         for _ in 0..<min(n, kittyStack.count) { kittyStack.removeLast() }
         KittyFlags = kittyStack.last ?? 0
     }
 
     // MARK: - Lines and columns
 
-    func setRendition(_ r: Rendition) {
+    func setRendition(r: Rendition) {
         screen[cy].Rendition = r
         // A double-width line has half the columns.
         if r != .single { cx = min(cx, Columns / 2 - 1) }
@@ -276,13 +276,13 @@ extension Terminal {
     }
 
     /// SL and SR: the margins' contents left (negative) or right.
-    func scrollSideways(_ by: int) {
+    func scrollSideways(by: int) {
         shiftColumns(top: top, bottom: bottom, left: left, right: right, by: by)
     }
 
     // MARK: - Selective erase
 
-    func selectiveEraseInLine(_ mode: int) {
+    func selectiveEraseInLine(mode: int) {
         var from = 0
         var to = Columns - 1
         switch mode {
@@ -293,7 +293,7 @@ extension Terminal {
         eraseRect(cy, from, cy, to, selective: true)
     }
 
-    func selectiveEraseInDisplay(_ mode: int) {
+    func selectiveEraseInDisplay(mode: int) {
         switch mode {
         case 0:
             selectiveEraseInLine(0)
@@ -312,7 +312,7 @@ extension Terminal {
 
     /// A rectangle's top, left, bottom and right from parameters i..i+3
     /// (1-based, from the origin in origin mode), clamped to the screen.
-    func rectArgs(_ i: int) -> (int, int, int, int) {
+    func rectArgs(i: int) -> (int, int, int, int) {
         let oy = originMode ? top : 0
         let ox = originMode ? left : 0
         let maxY = originMode ? bottom : Rows - 1
@@ -327,7 +327,7 @@ extension Terminal {
     /// Blanks a rectangle: every cell, or (selective) those not
     /// protected (DECSCA). The pen's background is kept for DECERA, as
     /// erasing does; selective erase keeps the cells' own attributes.
-    func eraseRect(_ t: int, _ l: int, _ b: int, _ r: int, selective: bool) {
+    func eraseRect(t: int, l: int, b: int, r: int, selective: bool) {
         if t > b || l > r { return }
         let blank = Cell(rune: 0x20, fg: .default, bg: pen.Bg)
         for y in t...b {
@@ -498,7 +498,7 @@ extension Terminal {
         }
     }
 
-    func setModes(_ on: bool, dec: bool) {
+    func setModes(on: bool, dec: bool) {
         for i in 0..<params.count {
             let m = params[i]
             if m < 0 { continue }
@@ -507,7 +507,7 @@ extension Terminal {
         Version += 1
     }
 
-    func setANSIMode(_ m: int, _ on: bool) {
+    func setANSIMode(m: int, on: bool) {
         switch m {
         case 4: insertMode = on
         case 20: newlineMode = on
@@ -515,7 +515,7 @@ extension Terminal {
         }
     }
 
-    func setDECMode(_ m: int, _ on: bool) {
+    func setDECMode(m: int, on: bool) {
         switch m {
         case 1: AppCursorKeys = on
         case 3:
@@ -565,7 +565,7 @@ extension Terminal {
         }
     }
 
-    func setMouseFormat(_ f: MouseEncoding, _ on: bool) {
+    func setMouseFormat(f: MouseEncoding, on: bool) {
         if on {
             MouseFormat = f
         } else if MouseFormat == f {
@@ -573,11 +573,11 @@ extension Terminal {
         }
     }
 
-    func reportMode(_ m: int, dec: bool) {
+    func reportMode(m: int, dec: bool) {
         // 1 set, 2 reset, 3 permanently set, 4 permanently reset, 0 not
         // recognized.
         var v = 0
-        func b(_ on: bool) -> int { return on ? 1 : 2 }
+        func b(on: bool) -> int { return on ? 1 : 2 }
         if dec {
             switch m {
             case 1: v = b(AppCursorKeys)
@@ -714,7 +714,7 @@ extension Terminal {
     /// A 38/48/58 color starting at parameter i: the color, and how many
     /// parameters after i it used. Takes both 38;5;n / 38;2;r;g;b and the
     /// colon forms 38:5:n / 38:2::r:g:b (with or without the color space).
-    func extendedColor(_ i: int) -> (Color, int)? {
+    func extendedColor(i: int) -> (Color, int)? {
         if i + 1 >= params.count { return nil }
         let kind = params[i + 1]
         if colons.count > i + 1 && colons[i + 1] {
@@ -750,6 +750,6 @@ extension Terminal {
     }
 }
 
-func clamp255(_ v: int) -> int {
+func clamp255(v: int) -> int {
     return v < 0 ? 0 : (v > 255 ? 255 : v)
 }

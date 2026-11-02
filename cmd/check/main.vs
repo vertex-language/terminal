@@ -12,7 +12,7 @@ import (
 
 var failures = 0
 
-func check(_ ok: bool, _ what: string) {
+func check(ok: bool, what: string) {
     if ok {
         print("ok   \(what)")
     } else {
@@ -21,18 +21,18 @@ func check(_ ok: bool, _ what: string) {
     }
 }
 
-func eq(_ got: string, _ want: string, _ what: string) {
+func eq(got: string, want: string, what: string) {
     check(got == want, got == want ? what : "\(what): got \(got.debugDescription), want \(want.debugDescription)")
 }
 
-func bytes(_ s: string) -> [uint8] { return [uint8](s.utf8) }
+func bytes(s: string) -> [uint8] { return [uint8](s.utf8) }
 
-func text(_ b: [uint8]?) -> string {
+func text(b: [uint8]?) -> string {
     guard let b = b else { return "nil" }
     return string(decoding: b, as: UTF8.self)
 }
 
-func row(_ t: vt.Terminal, _ y: int) -> string { return t.Row(y).Text() }
+func row(t: vt.Terminal, y: int) -> string { return t.Row(y).Text() }
 
 func basics() {
     let t = vt.Terminal(columns: 10, rows: 3)

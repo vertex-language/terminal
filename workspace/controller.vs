@@ -208,7 +208,7 @@ public final class Controller {
     }
 
     /// A line at the bottom for a moment.
-    func toast(_ text: string) {
+    func toast(text: string) {
         ui.Toast = text
         ui.toastEpoch += 1
         let epoch = ui.toastEpoch
@@ -224,7 +224,7 @@ public final class Controller {
     // MARK: - Panes
 
     /// A pane running a profile, in dir (or where the profile says).
-    func makePane(_ p: Profile, dir: string?, commandline: string? = nil) -> Pane {
+    func makePane(p: Profile, dir: string?, commandline: string? = nil) -> Pane {
         let id = ws.nextPane
         ws.nextPane += 1
         let shell = Shell(columns: gridColumns, rows: gridRows)
@@ -241,7 +241,7 @@ public final class Controller {
 
     /// The directory a new pane starts in: the profile's, else the
     /// focused pane's (as a Mac terminal does), else home.
-    func startDir(_ p: Profile, inherit: string?) -> string? {
+    func startDir(p: Profile, inherit: string?) -> string? {
         if !p.StartingDirectory.isEmpty && p.StartingDirectory != "." { return expandHome(p.StartingDirectory) }
         return inherit
     }
@@ -249,7 +249,7 @@ public final class Controller {
     /// Starts a pane's program once it has its size: at the next frame,
     /// which lays it out (so the shell's first prompt is drawn for the
     /// size it will have), or in a moment where no frame comes.
-    func start(_ pane: Pane, dir: string?, commandline: string? = nil) {
+    func start(pane: Pane, dir: string?, commandline: string? = nil) {
         pane.pendingDir = dir
         pane.pendingCommand = commandline ?? pane.profile.Commandline
         pane.pending = true
@@ -260,7 +260,7 @@ public final class Controller {
         }
     }
 
-    func startNow(_ pane: Pane) {
+    func startNow(pane: Pane) {
         if !pane.pending { return }
         pane.pending = false
         var e = pane.profile.Environment
@@ -270,7 +270,7 @@ public final class Controller {
 
     /// Lays out the panes of tabs behind that haven't started, so they
     /// start at their size too.
-    func startPending(_ w: int, _ h: int, divider: int) {
+    func startPending(w: int, h: int, divider: int) {
         for tab in ws.Tabs where tab.ID != ws.Active {
             let waiting = tab.Panes.filter { $0.pending }
             if waiting.isEmpty { continue }
@@ -284,7 +284,7 @@ public final class Controller {
     }
 
     /// A pane's renderer and terminal set as its profile says.
-    func configure(_ pane: Pane) {
+    func configure(pane: Pane) {
         let p = pane.profile
         let r = pane.renderer
         let t = pane.shell.term
@@ -361,7 +361,7 @@ public final class Controller {
     }
 
     /// A shell wrote something.
-    func ShellOutput(_ paneID: int) {
+    func ShellOutput(paneID: int) {
         guard let tab = ws.TabOf(pane: paneID), let pane = ws.PaneByID(paneID) else { return }
         let t = pane.shell.term
         pane.dirty = true
@@ -391,7 +391,7 @@ public final class Controller {
     }
 
     /// The bell: a sound, a flash, the tab's dot, as the profile says.
-    func ring(_ tab: Tab, _ pane: Pane) {
+    func ring(tab: Tab, pane: Pane) {
         let style = pane.profile.BellStyle
         if style.contains("audible") { app.Beep() }
         if style.contains("visual") && ws.Active == tab.ID {
@@ -409,7 +409,7 @@ public final class Controller {
 
     /// A shell ended: its pane closes, or stays with a note, as the
     /// profile's closeOnExit says.
-    func ShellExited(_ paneID: int) {
+    func ShellExited(paneID: int) {
         guard let pane = ws.PaneByID(paneID) else { return }
         let code = pane.shell.ExitCode
         let mode = pane.profile.CloseOnExit
@@ -426,7 +426,7 @@ public final class Controller {
         redraw()
     }
 
-    func Select(_ id: int) {
+    func Select(id: int) {
         ui.SettingsShown = false
         if ws.Active != id {
             ws.Active = id
@@ -443,7 +443,7 @@ public final class Controller {
     }
 
     /// Closes a pane; the tab goes with its last.
-    func ClosePane(_ paneID: int, remember: bool = true) {
+    func ClosePane(paneID: int, remember: bool = true) {
         guard let tab = ws.TabOf(pane: paneID), let pane = ws.PaneByID(paneID) else { return }
         if tab.Panes.count <= 1 {
             Close(tab.ID, remember: remember)
@@ -457,11 +457,11 @@ public final class Controller {
         redraw()
     }
 
-    func Close(_ id: int) {
+    func Close(id: int) {
         Close(id, remember: true)
     }
 
-    func Close(_ id: int, remember: bool) {
+    func Close(id: int, remember: bool) {
         guard let i = ws.Index(of: id) else { return }
         let tab = ws.Tabs[i]
         for p in tab.Panes {
@@ -483,14 +483,14 @@ public final class Controller {
         }
     }
 
-    func Step(_ by: int) {
+    func Step(by: int) {
         guard let i = ws.Index(of: ws.Active), ws.Tabs.count > 1 else { return }
         let n = ws.Tabs.count
         Select(ws.Tabs[((i + by) % n + n) % n].ID)
     }
 
     /// Focuses a pane of the tab in front.
-    func FocusPane(_ id: int) {
+    func FocusPane(id: int) {
         guard let tab = ws.Current, tab.Focused != id else { return }
         if let old = tab.FocusedPane, let report = old.shell.term.EncodeFocus(false) { old.shell.Send(report) }
         tab.Focus(id)
@@ -510,7 +510,7 @@ public final class Controller {
     /// The tab's title from its focused pane: the profile's tabTitle,
     /// what the program set (OSC 0 or 2) unless the profile suppresses
     /// it, or what is running and where.
-    func UpdateTitle(_ tab: Tab) {
+    func UpdateTitle(tab: Tab) {
         guard let pane = tab.FocusedPane else { return }
         let shell = pane.shell
         var t = ""
@@ -619,7 +619,7 @@ public final class Controller {
 
     /// The viewport's frame: the panes of the tab in front, laid out in
     /// the box, each drawn by its renderer and put in place.
-    func Draw(_ w: int, _ h: int, _ t: float64) -> [uint8] {
+    func Draw(w: int, h: int, t: float64) -> [uint8] {
         if let css = handle?.Size, css.Width > 0 { scale = float32(w) / css.Width }
         let isDark = settings.Theme == "dark" ? true : (settings.Theme == "light" ? false : app.IsDark())
         if isDark != dark {
@@ -747,7 +747,7 @@ public final class Controller {
 
     /// Puts a pane's pixels in the frame at its place; a flash lightens
     /// them.
-    func blit(_ px: [uint8], _ pane: Pane, flash: bool) {
+    func blit(px: [uint8], pane: Pane, flash: bool) {
         let rowBytes = pane.W * 4
         if px.count < pane.W * pane.H * 4 { return }
         for y in 0..<pane.H {
@@ -778,7 +778,7 @@ public final class Controller {
 
     /// Opens a URL or a path with the system (the browser, Finder, the
     /// text editor): only schemes that are safe to hand on.
-    func openExternal(_ target: string, textEditor: bool = false) {
+    func openExternal(target: string, textEditor: bool = false) {
         let lower = target.lowercased()
         let safe = lower.hasPrefix("http://") || lower.hasPrefix("https://") || lower.hasPrefix("file://") ||
             lower.hasPrefix("mailto:") || target.hasPrefix("/")
@@ -812,7 +812,7 @@ public final class Controller {
     }
 }
 
-func safeFileName(_ s: string) -> string {
+func safeFileName(s: string) -> string {
     var out: [uint8] = []
     for b in s.utf8 {
         if b == 0x2F || b == 0x3A || b == 0x5C || b < 0x20 { out.append(0x2D) } else { out.append(b) }
@@ -821,7 +821,7 @@ func safeFileName(_ s: string) -> string {
     return string(decoding: out, as: UTF8.self)
 }
 
-func progressName(_ p: vt.ProgressState) -> string {
+func progressName(p: vt.ProgressState) -> string {
     switch p {
     case .none: return ""
     case .normal: return "normal"
@@ -831,7 +831,7 @@ func progressName(_ p: vt.ProgressState) -> string {
     }
 }
 
-func hasBlinkingText(_ t: vt.Terminal) -> bool {
+func hasBlinkingText(t: vt.Terminal) -> bool {
     for y in 0..<t.Rows {
         for c in t.ViewRow(y).Cells where c.Has(vt.Attr.blink) { return true }
     }
